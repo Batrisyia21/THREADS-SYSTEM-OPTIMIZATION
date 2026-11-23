@@ -1,0 +1,6 @@
+{
+  "name": "Threads+ UI Prototype",
+  "description": "Self-contained offline interactive UI prototype of Threads+ with 8 mobile screens and 2 desktop moderation and administration consoles.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

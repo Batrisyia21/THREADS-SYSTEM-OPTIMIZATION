@@ -1,0 +1,4213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Threads+ — Interactive UI Prototype</title>
+  <meta name="description" content="Self-contained offline interactive UI prototype for Threads+ social app, moderation queue, and administrator panel." />
+  <style>
+    /* =========================================================================
+       1. DESIGN TOKENS & BASE STYLES (WCAG 2.1 AA DARK THEME)
+       ========================================================================= */
+    :root {
+      --bg-stage: #070a10;
+      --bg-sidebar: #0e131d;
+      --bg-surface: #0d1117;
+      --bg-card: #161b24;
+      --bg-card-hover: #1d2432;
+      --bg-input: #0b0f17;
+      --border-subtle: #263042;
+      --border-strong: #374151;
+
+      --text-primary: #f3f4f6;
+      --text-secondary: #b0b8c4;
+      --text-muted: #8b95a5;
+
+      --navy: #1f4e79;
+      --navy-hover: #296399;
+      --navy-tint: rgba(31, 78, 121, 0.28);
+
+      --red-btn: #b91c1c;
+      --red-btn-hover: #dc2626;
+      --red-border: #ef4444;
+      --red-text: #fca5a5;
+      --red-bg: rgba(185, 28, 28, 0.16);
+
+      --green-bg: #14532d;
+      --green-border: #22c55e;
+      --green-text: #ecfdf5;
+      --green-inline: #4ade80;
+
+      --amber-bg: rgba(180, 83, 9, 0.22);
+      --amber-border: #f59e0b;
+      --amber-text: #fde68a;
+
+      --blue-dot: #3b82f6;
+      --unread-bg: rgba(59, 130, 246, 0.12);
+
+      --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      --font-mono: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+
+      --radius-sm: 8px;
+      --radius-md: 12px;
+      --radius-lg: 16px;
+    }
+
+    *, *::before, *::after {
+      box-sizing: border-box;
+    }
+
+    html, body {
+      margin: 0;
+      padding: 0;
+      min-height: 100%;
+      background-color: var(--bg-stage);
+      color: var(--text-primary);
+      font-family: var(--font-sans);
+      font-size: 15px;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    button, input, select, textarea {
+      font-family: inherit;
+      font-size: inherit;
+      color: inherit;
+    }
+
+    button {
+      cursor: pointer;
+      border: none;
+      background: none;
+    }
+
+    :focus-visible {
+      outline: 2px solid #60a5fa;
+      outline-offset: 2px;
+    }
+
+    .tabular-nums {
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* =========================================================================
+       2. PRESENTATION WORKSPACE LAYOUT (SIDEBAR + STAGE + ANNOTATIONS)
+       ========================================================================= */
+    .workspace {
+      display: flex;
+      min-height: 100vh;
+      width: 100%;
+    }
+
+    .mobile-bar {
+      display: none;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 16px;
+      background: var(--bg-sidebar);
+      border-bottom: 1px solid var(--border-subtle);
+      position: sticky;
+      top: 0;
+      z-index: 60;
+    }
+
+    .sidebar {
+      width: 280px;
+      flex-shrink: 0;
+      background: var(--bg-sidebar);
+      border-right: 1px solid var(--border-subtle);
+      padding: 20px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      overflow-y: auto;
+    }
+
+    .sidebar-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .sidebar-title {
+      margin: 0;
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--text-primary);
+      letter-spacing: -0.01em;
+    }
+
+    .sidebar-sub {
+      margin: 2px 0 0;
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .screen-list {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      list-style: none;
+      margin: 0;
+      padding: 0;
+    }
+
+    .screen-nav-btn {
+      width: 100%;
+      min-height: 40px;
+      padding: 8px 12px;
+      border-radius: var(--radius-sm);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      text-align: left;
+      font-size: 13.5px;
+      font-weight: 500;
+      color: var(--text-secondary);
+      border: 1px solid transparent;
+      transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+    }
+
+    .screen-nav-btn:hover {
+      background: var(--bg-card);
+      color: var(--text-primary);
+    }
+
+    .screen-nav-btn.active {
+      background: var(--navy);
+      color: #ffffff;
+      font-weight: 600;
+    }
+
+    .screen-num {
+      width: 22px;
+      height: 22px;
+      border-radius: 6px;
+      background: rgba(255, 255, 255, 0.08);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: 700;
+      flex-shrink: 0;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .screen-nav-btn.active .screen-num {
+      background: rgba(255, 255, 255, 0.22);
+    }
+
+    .screen-type-label {
+      margin-left: auto;
+      font-size: 11px;
+      color: var(--text-muted);
+      flex-shrink: 0;
+    }
+
+    .screen-nav-btn.active .screen-type-label {
+      color: #dbeafe;
+    }
+
+    .sidebar-controls-group {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      padding-top: 12px;
+      border-top: 1px solid var(--border-subtle);
+    }
+
+    .prev-next-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    .ctrl-btn {
+      min-height: 44px;
+      padding: 8px 12px;
+      border-radius: var(--radius-sm);
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      color: var(--text-primary);
+      font-size: 13.5px;
+      font-weight: 600;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      transition: background-color 0.15s ease, border-color 0.15s ease;
+    }
+
+    .ctrl-btn:hover:not(:disabled) {
+      background: var(--bg-card-hover);
+      border-color: var(--border-strong);
+    }
+
+    .ctrl-btn:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+
+    .ctrl-btn-danger {
+      border-color: rgba(239, 68, 68, 0.55);
+      color: var(--red-text);
+      background: rgba(185, 28, 28, 0.12);
+    }
+
+    .ctrl-btn-danger:hover:not(:disabled) {
+      background: rgba(185, 28, 28, 0.24);
+      border-color: var(--red-border);
+    }
+
+    .ctrl-toggle-label {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      min-height: 44px;
+      padding: 8px 10px;
+      border-radius: var(--radius-sm);
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-primary);
+    }
+
+    .ctrl-toggle-label input[type="checkbox"] {
+      width: 18px;
+      height: 18px;
+      accent-color: #3b82f6;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+
+    .kbd-hint {
+      font-size: 12px;
+      color: var(--text-muted);
+      text-align: center;
+      margin: 0;
+    }
+
+    /* Main Stage */
+    .stage {
+      flex: 1;
+      min-width: 0;
+      padding: 28px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 28px;
+      flex-wrap: wrap;
+    }
+
+    /* =========================================================================
+       3. DEVICE FRAMES (PHONE 390x800 & DESKTOP BROWSER)
+       ========================================================================= */
+    .phone-frame {
+      width: 390px;
+      height: 800px;
+      max-width: 100%;
+      background: var(--bg-surface);
+      border-radius: 44px;
+      border: 8px solid #1e293b;
+      box-shadow: 0 24px 64px rgba(0, 0, 0, 0.72), 0 0 0 1px #334155;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      position: relative;
+      flex-shrink: 0;
+    }
+
+    .phone-statusbar {
+      height: 42px;
+      padding: 0 22px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: var(--bg-surface);
+      position: relative;
+      flex-shrink: 0;
+      z-index: 20;
+    }
+
+    .phone-notch {
+      position: absolute;
+      left: 50%;
+      top: 8px;
+      transform: translateX(-50%);
+      width: 124px;
+      height: 24px;
+      background: #020408;
+      border-radius: 999px;
+      border: 1px solid #1e293b;
+    }
+
+    .phone-time {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text-primary);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .phone-status-icons {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--text-primary);
+    }
+
+    .phone-viewport {
+      flex: 1;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* Desktop Browser Frame for Screens 9 & 10 */
+    .browser-frame {
+      width: 100%;
+      max-width: 980px;
+      min-height: 700px;
+      max-height: 860px;
+      background: var(--bg-surface);
+      border-radius: 14px;
+      border: 1px solid var(--border-strong);
+      box-shadow: 0 24px 64px rgba(0, 0, 0, 0.72);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .browser-chrome {
+      height: 46px;
+      padding: 0 16px;
+      background: #141a24;
+      border-bottom: 1px solid var(--border-subtle);
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      flex-shrink: 0;
+    }
+
+    .window-dots {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      flex-shrink: 0;
+    }
+
+    .window-dot {
+      width: 11px;
+      height: 11px;
+      border-radius: 50%;
+    }
+
+    .window-dot.red { background: #ef4444; }
+    .window-dot.amber { background: #f59e0b; }
+    .window-dot.green { background: #22c55e; }
+
+    .address-bar {
+      flex: 1;
+      max-width: 480px;
+      height: 30px;
+      background: var(--bg-input);
+      border: 1px solid var(--border-subtle);
+      border-radius: 8px;
+      padding: 0 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-family: var(--font-mono);
+      font-size: 12.5px;
+      color: var(--text-secondary);
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+    }
+
+    .browser-viewport {
+      flex: 1;
+      min-height: 0;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+    }
+
+    /* =========================================================================
+       4. SHARED APP UI COMPONENTS (BUTTONS, HEADERS, CHIPS, TOASTS, MODALS)
+       ========================================================================= */
+    .screen-scroll {
+      flex: 1;
+      min-height: 0;
+      overflow-y: auto;
+      padding: 16px;
+    }
+
+    .app-header {
+      min-height: 54px;
+      padding: 8px 16px;
+      border-bottom: 1px solid var(--border-subtle);
+      background: var(--bg-surface);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-shrink: 0;
+    }
+
+    .app-header-title {
+      margin: 0;
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--text-primary);
+      letter-spacing: -0.01em;
+    }
+
+    .brand-lockup {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .brand-mark {
+      width: 28px;
+      height: 28px;
+      border-radius: 8px;
+      background: var(--navy);
+      color: #ffffff;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      font-size: 15px;
+      flex-shrink: 0;
+    }
+
+    /* Buttons */
+    .btn {
+      min-height: 44px;
+      padding: 10px 18px;
+      border-radius: var(--radius-sm);
+      font-size: 14px;
+      font-weight: 600;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      white-space: nowrap;
+      transition: background-color 0.15s ease, border-color 0.15s ease, opacity 0.15s ease;
+    }
+
+    .btn-sm {
+      min-height: 40px;
+      padding: 8px 14px;
+      font-size: 13px;
+    }
+
+    .btn-block {
+      width: 100%;
+    }
+
+    .btn-navy {
+      background: var(--navy);
+      color: #ffffff;
+    }
+
+    .btn-navy:hover:not(:disabled) {
+      background: var(--navy-hover);
+    }
+
+    .btn-navy:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+
+    .btn-danger {
+      background: var(--red-btn);
+      color: #ffffff;
+    }
+
+    .btn-danger:hover:not(:disabled) {
+      background: var(--red-btn-hover);
+    }
+
+    .btn-secondary {
+      background: var(--bg-card);
+      border: 1px solid var(--border-strong);
+      color: var(--text-primary);
+    }
+
+    .btn-secondary:hover:not(:disabled) {
+      background: var(--bg-card-hover);
+    }
+
+    .btn-ghost {
+      background: transparent;
+      color: var(--text-secondary);
+      padding: 8px 12px;
+    }
+
+    .btn-ghost:hover:not(:disabled) {
+      color: var(--text-primary);
+      background: rgba(255, 255, 255, 0.06);
+    }
+
+    .text-link-btn {
+      min-height: 40px;
+      padding: 6px 8px;
+      color: #93c5fd;
+      font-size: 13.5px;
+      font-weight: 600;
+      text-decoration: underline;
+      text-underline-offset: 3px;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .text-link-btn:hover {
+      color: #bfdbfe;
+    }
+
+    /* Form Controls */
+    .field-label {
+      display: block;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-secondary);
+      margin-bottom: 6px;
+    }
+
+    .input, .select, .textarea {
+      width: 100%;
+      background: var(--bg-input);
+      border: 1px solid var(--border-strong);
+      border-radius: var(--radius-sm);
+      color: var(--text-primary);
+      padding: 10px 12px;
+      font-size: 14px;
+      transition: border-color 0.15s ease;
+    }
+
+    .input, .select {
+      min-height: 44px;
+    }
+
+    .textarea {
+      resize: vertical;
+      min-height: 150px;
+      line-height: 1.5;
+    }
+
+    .input:focus, .select:focus, .textarea:focus {
+      border-color: #60a5fa;
+      outline: none;
+    }
+
+    /* Inline Semantic Messages (Never color alone!) */
+    .msg-box {
+      padding: 12px 14px;
+      border-radius: var(--radius-sm);
+      font-size: 13.5px;
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      line-height: 1.45;
+    }
+
+    .msg-error {
+      background: var(--red-bg);
+      border: 1px solid var(--red-border);
+      color: var(--red-text);
+    }
+
+    .msg-amber {
+      background: var(--amber-bg);
+      border: 1px solid var(--amber-border);
+      color: var(--amber-text);
+    }
+
+    .msg-success {
+      background: rgba(20, 83, 45, 0.55);
+      border: 1px solid var(--green-border);
+      color: var(--green-text);
+    }
+
+    .msg-info {
+      background: rgba(31, 78, 121, 0.28);
+      border: 1px solid #3b82f6;
+      color: #dbeafe;
+    }
+
+    .inline-error {
+      color: var(--red-text);
+      font-size: 13px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-top: 6px;
+    }
+
+    /* Tabs & Chips */
+    .tab-bar {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 10px 16px;
+      border-bottom: 1px solid var(--border-subtle);
+      overflow-x: auto;
+      flex-shrink: 0;
+      background: var(--bg-surface);
+    }
+
+    .tab-btn {
+      min-height: 40px;
+      padding: 8px 14px;
+      border-radius: var(--radius-sm);
+      font-size: 13.5px;
+      font-weight: 600;
+      color: var(--text-secondary);
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      white-space: nowrap;
+      flex-shrink: 0;
+      transition: background-color 0.15s ease, color 0.15s ease;
+    }
+
+    .tab-btn:hover {
+      color: var(--text-primary);
+      background: var(--bg-card-hover);
+    }
+
+    .tab-btn.active {
+      background: var(--navy);
+      border-color: #3b82f6;
+      color: #ffffff;
+    }
+
+    .chip-group {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .chip-btn {
+      min-height: 40px;
+      padding: 8px 14px;
+      border-radius: 999px;
+      background: var(--bg-card);
+      border: 1px solid var(--border-strong);
+      color: var(--text-secondary);
+      font-size: 13.5px;
+      font-weight: 600;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      white-space: nowrap;
+    }
+
+    .chip-btn:hover {
+      background: var(--bg-card-hover);
+      color: var(--text-primary);
+    }
+
+    .chip-btn.selected {
+      background: var(--navy);
+      border-color: #60a5fa;
+      color: #ffffff;
+    }
+
+    /* Category Tags */
+    .cat-tag {
+      display: inline-flex;
+      align-items: center;
+      padding: 2px 9px;
+      border-radius: 6px;
+      font-size: 11.5px;
+      font-weight: 700;
+      letter-spacing: 0.01em;
+    }
+
+    .cat-Tech { background: rgba(56, 189, 248, 0.16); color: #7dd3fc; border: 1px solid rgba(56, 189, 248, 0.35); }
+    .cat-News { background: rgba(192, 132, 252, 0.16); color: #d8b4fe; border: 1px solid rgba(192, 132, 252, 0.35); }
+    .cat-Personal { background: rgba(52, 211, 153, 0.16); color: #6ee7b7; border: 1px solid rgba(52, 211, 153, 0.35); }
+    .cat-Custom { background: rgba(251, 191, 36, 0.16); color: #fde68a; border: 1px solid rgba(251, 191, 36, 0.35); }
+
+    /* Fixed Bottom Navigation (Phone Screens) */
+    .bottom-nav {
+      height: 68px;
+      background: #101520;
+      border-top: 1px solid var(--border-subtle);
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      flex-shrink: 0;
+      z-index: 20;
+    }
+
+    .bottom-nav-btn {
+      min-height: 44px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 3px;
+      color: var(--text-muted);
+      font-size: 11px;
+      font-weight: 600;
+      position: relative;
+      transition: color 0.15s ease, background-color 0.15s ease;
+    }
+
+    .bottom-nav-btn:hover {
+      color: var(--text-primary);
+      background: rgba(255, 255, 255, 0.03);
+    }
+
+    .bottom-nav-btn.active {
+      color: #93c5fd;
+    }
+
+    .bottom-nav-btn.active::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: 20%;
+      right: 20%;
+      height: 2.5px;
+      background: #60a5fa;
+      border-radius: 0 0 3px 3px;
+    }
+
+    .nav-badge {
+      position: absolute;
+      top: 6px;
+      right: 14px;
+      min-width: 17px;
+      height: 17px;
+      padding: 0 4px;
+      border-radius: 999px;
+      background: #2563eb;
+      color: #ffffff;
+      font-size: 10.5px;
+      font-weight: 700;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* Toast */
+    .toast-host {
+      position: absolute;
+      left: 14px;
+      right: 14px;
+      bottom: 80px;
+      z-index: 50;
+      pointer-events: none;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .browser-frame .toast-host {
+      bottom: 20px;
+      left: auto;
+      right: 20px;
+      width: 380px;
+      max-width: calc(100% - 40px);
+    }
+
+    .toast {
+      pointer-events: auto;
+      background: var(--green-bg);
+      border: 1px solid var(--green-border);
+      color: var(--green-text);
+      padding: 12px 14px;
+      border-radius: var(--radius-md);
+      box-shadow: 0 12px 28px rgba(0, 0, 0, 0.55);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      font-size: 13.5px;
+      font-weight: 600;
+      animation: toastIn 0.18s ease-out;
+    }
+
+    .toast.toast-amber {
+      background: #451a03;
+      border-color: var(--amber-border);
+      color: var(--amber-text);
+    }
+
+    .toast-undo-btn {
+      min-height: 36px;
+      padding: 4px 12px;
+      border-radius: 6px;
+      background: rgba(255, 255, 255, 0.18);
+      color: #ffffff;
+      font-size: 13px;
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+
+    .toast-undo-btn:hover {
+      background: rgba(255, 255, 255, 0.28);
+    }
+
+    @keyframes toastIn {
+      from { transform: translateY(8px); }
+      to { transform: translateY(0); }
+    }
+
+    /* Overlay Modal & Bottom Sheet inside Phone/Browser Viewport */
+    .viewport-overlay {
+      position: absolute;
+      inset: 0;
+      background: rgba(3, 6, 12, 0.74);
+      z-index: 40;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+    }
+
+    .viewport-overlay.sheet-overlay {
+      align-items: flex-end;
+      padding: 0;
+    }
+
+    .modal-card {
+      width: 100%;
+      max-width: 360px;
+      background: var(--bg-card);
+      border: 1px solid var(--border-strong);
+      border-radius: var(--radius-lg);
+      padding: 20px;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.7);
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .modal-title {
+      margin: 0;
+      font-size: 17px;
+      font-weight: 700;
+      color: var(--text-primary);
+    }
+
+    .modal-body {
+      margin: 0;
+      font-size: 14px;
+      color: var(--text-secondary);
+      line-height: 1.5;
+    }
+
+    .modal-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+      margin-top: 4px;
+    }
+
+    .bottom-sheet {
+      width: 100%;
+      background: #131923;
+      border-top: 1px solid var(--border-strong);
+      border-radius: 24px 24px 0 0;
+      padding: 12px 16px 20px;
+      box-shadow: 0 -12px 40px rgba(0, 0, 0, 0.7);
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      max-height: 84%;
+      overflow-y: auto;
+    }
+
+    .sheet-handle {
+      width: 40px;
+      height: 4px;
+      border-radius: 999px;
+      background: #475569;
+      margin: 0 auto 4px;
+      flex-shrink: 0;
+    }
+
+    /* =========================================================================
+       5. SCREEN-SPECIFIC STYLES (SCREENS 1–10)
+       ========================================================================= */
+
+    /* Screen 1: Sign-in */
+    .signin-wrap {
+      flex: 1;
+      padding: 28px 22px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      gap: 18px;
+    }
+
+    .signin-hero {
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 8px;
+    }
+
+    .signin-logo {
+      width: 60px;
+      height: 60px;
+      color: #ffffff;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .signin-logo svg {
+      width: 56px;
+      height: 56px;
+      display: block;
+    }
+
+    .signin-title {
+      margin: 0;
+      font-size: 26px;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+    }
+
+    .signin-sub {
+      margin: 0;
+      font-size: 13.5px;
+      color: var(--text-secondary);
+      text-align: center;
+    }
+
+    /* Screen 3: Feed Posts */
+    .post-list {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .post-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      position: relative;
+    }
+
+    .post-card.quieted {
+      opacity: 0.72;
+      border-style: dashed;
+    }
+
+    .post-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .post-author-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-width: 0;
+    }
+
+    .avatar {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: #233046;
+      border: 1px solid var(--border-strong);
+      color: #e2e8f0;
+      font-size: 13px;
+      font-weight: 700;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .post-meta {
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+    }
+
+    .post-user-line {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    .post-username {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--text-primary);
+    }
+
+    .post-time {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .post-text {
+      margin: 0;
+      font-size: 14.5px;
+      color: var(--text-primary);
+      line-height: 1.5;
+      word-break: break-word;
+    }
+
+    .post-actions {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding-top: 4px;
+      border-top: 1px solid rgba(255, 255, 255, 0.06);
+    }
+
+    .post-action-btn {
+      min-height: 40px;
+      padding: 6px 10px;
+      border-radius: 8px;
+      color: var(--text-secondary);
+      font-size: 13px;
+      font-weight: 600;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .post-action-btn:hover {
+      background: rgba(255, 255, 255, 0.06);
+      color: var(--text-primary);
+    }
+
+    .post-action-btn.liked {
+      color: #fca5a5;
+    }
+
+    .post-action-btn.reposted {
+      color: #6ee7b7;
+    }
+
+    .more-btn {
+      min-width: 40px;
+      min-height: 40px;
+      border-radius: 8px;
+      color: var(--text-secondary);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 16px;
+    }
+
+    .more-btn:hover {
+      background: rgba(255, 255, 255, 0.08);
+      color: var(--text-primary);
+    }
+
+    .post-menu {
+      position: absolute;
+      top: 48px;
+      right: 12px;
+      width: 190px;
+      background: #1c2432;
+      border: 1px solid var(--border-strong);
+      border-radius: var(--radius-sm);
+      box-shadow: 0 14px 32px rgba(0, 0, 0, 0.65);
+      z-index: 30;
+      padding: 4px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .post-menu-item {
+      min-height: 42px;
+      padding: 8px 12px;
+      border-radius: 6px;
+      text-align: left;
+      font-size: 13.5px;
+      font-weight: 600;
+      color: var(--text-primary);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .post-menu-item:hover {
+      background: var(--navy);
+    }
+
+    .post-menu-item.danger {
+      color: var(--red-text);
+    }
+
+    .post-menu-item.danger:hover {
+      background: rgba(185, 28, 28, 0.25);
+    }
+
+    .reply-box {
+      display: flex;
+      gap: 8px;
+      padding-top: 6px;
+    }
+
+    .reply-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      padding-top: 4px;
+    }
+
+    .reply-item {
+      background: var(--bg-input);
+      border: 1px solid var(--border-subtle);
+      border-radius: 8px;
+      padding: 8px 10px;
+      font-size: 13px;
+    }
+
+    /* Skeleton Loader */
+    .skeleton-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .skel-bar {
+      height: 12px;
+      border-radius: 6px;
+      background: linear-gradient(90deg, #1f2937 25%, #2b374a 50%, #1f2937 75%);
+      background-size: 200% 100%;
+      animation: shimmer 1.2s infinite linear;
+    }
+
+    @keyframes shimmer {
+      0% { background-position: 200% 0; }
+      100% { background-position: -200% 0; }
+    }
+
+    /* Screen 4: Tune Sheet Cards */
+    .tune-card {
+      width: 100%;
+      min-height: 56px;
+      padding: 12px 14px;
+      border-radius: var(--radius-md);
+      background: var(--bg-card);
+      border: 1px solid var(--border-strong);
+      text-align: left;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      transition: background-color 0.15s ease, border-color 0.15s ease;
+    }
+
+    .tune-card:hover {
+      background: var(--bg-card-hover);
+    }
+
+    .tune-card.tune-block {
+      border: 1.5px solid var(--red-border);
+      background: rgba(185, 28, 28, 0.1);
+    }
+
+    .tune-card-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--text-primary);
+    }
+
+    .tune-card.tune-block .tune-card-title {
+      color: var(--red-text);
+    }
+
+    .tune-card-desc {
+      font-size: 12.5px;
+      color: var(--text-secondary);
+    }
+
+    /* Screen 5: Search History */
+    .date-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    .history-item {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    /* Screen 6: Notifications */
+    .notif-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .notif-item {
+      width: 100%;
+      min-height: 56px;
+      padding: 12px 14px;
+      border-radius: var(--radius-md);
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      text-align: left;
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      transition: background-color 0.15s ease;
+    }
+
+    .notif-item.unread {
+      background: var(--unread-bg);
+      border-color: rgba(59, 130, 246, 0.45);
+    }
+
+    .unread-dot {
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      background: var(--blue-dot);
+      margin-top: 6px;
+      flex-shrink: 0;
+    }
+
+    .read-spacer {
+      width: 9px;
+      flex-shrink: 0;
+    }
+
+    .count-badge {
+      min-width: 20px;
+      height: 20px;
+      padding: 0 6px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.14);
+      font-size: 11.5px;
+      font-weight: 700;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* Screen 7: Privacy Dashboard */
+    .setting-row {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      padding: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+    }
+
+    .switch-btn {
+      width: 50px;
+      height: 28px;
+      border-radius: 999px;
+      background: #374151;
+      border: 1px solid #4b5563;
+      position: relative;
+      flex-shrink: 0;
+      transition: background-color 0.15s ease;
+    }
+
+    .switch-btn[aria-checked="true"] {
+      background: var(--navy);
+      border-color: #60a5fa;
+    }
+
+    .switch-knob {
+      position: absolute;
+      top: 3px;
+      left: 3px;
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: #ffffff;
+      transition: transform 0.15s ease;
+    }
+
+    .switch-btn[aria-checked="true"] .switch-knob {
+      transform: translateX(22px);
+    }
+
+    .segmented {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 4px;
+      padding: 4px;
+      background: var(--bg-input);
+      border: 1px solid var(--border-strong);
+      border-radius: var(--radius-sm);
+    }
+
+    .seg-btn {
+      min-height: 40px;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-secondary);
+      transition: background-color 0.15s ease, color 0.15s ease;
+    }
+
+    .seg-btn.active {
+      background: var(--navy);
+      color: #ffffff;
+    }
+
+    /* Screen 9: Moderation Desktop Console */
+    .mod-layout {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 1.08fr 0.92fr;
+      min-height: 0;
+    }
+
+    .mod-left {
+      border-right: 1px solid var(--border-subtle);
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+      overflow-y: auto;
+    }
+
+    .mod-right {
+      padding: 18px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      background: #10151f;
+    }
+
+    .data-table-wrap {
+      overflow-x: auto;
+      padding: 0 16px 16px;
+    }
+
+    .data-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+
+    .data-table th {
+      text-align: left;
+      padding: 10px 8px;
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--text-muted);
+      border-bottom: 1px solid var(--border-subtle);
+      white-space: nowrap;
+    }
+
+    .data-table td {
+      padding: 10px 8px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+      color: var(--text-primary);
+      vertical-align: middle;
+    }
+
+    .case-row {
+      cursor: pointer;
+      transition: background-color 0.12s ease;
+    }
+
+    .case-row:hover {
+      background: rgba(255, 255, 255, 0.04);
+    }
+
+    .case-row.selected {
+      background: var(--navy-tint);
+    }
+
+    .risk-chip {
+      display: inline-flex;
+      align-items: center;
+      padding: 3px 9px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 700;
+      background: rgba(239, 68, 68, 0.18);
+      border: 1px solid rgba(239, 68, 68, 0.45);
+      color: var(--red-text);
+    }
+
+    .status-pill {
+      display: inline-flex;
+      align-items: center;
+      padding: 2px 8px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      background: var(--bg-card);
+      border: 1px solid var(--border-strong);
+      color: var(--text-secondary);
+      white-space: nowrap;
+    }
+
+    .status-pill.open { border-color: #f59e0b; color: #fde68a; background: rgba(180, 83, 9, 0.2); }
+    .status-pill.review { border-color: #60a5fa; color: #bfdbfe; background: rgba(37, 99, 235, 0.2); }
+    .status-pill.closed { border-color: #22c55e; color: #bbf7d0; background: rgba(22, 163, 74, 0.2); }
+
+    /* Screen 10: Admin 4-Card Grid */
+    .admin-grid {
+      padding: 18px;
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 16px;
+    }
+
+    .admin-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      position: relative;
+    }
+
+    .admin-card-title {
+      margin: 0;
+      font-size: 15.5px;
+      font-weight: 700;
+      color: var(--text-primary);
+    }
+
+    .health-tile {
+      padding: 12px 14px;
+      border-radius: var(--radius-sm);
+      background: rgba(20, 83, 45, 0.35);
+      border: 1px solid var(--green-border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .health-status {
+      font-size: 12px;
+      font-weight: 700;
+      color: #86efac;
+      white-space: nowrap;
+    }
+
+    /* =========================================================================
+       6. ANNOTATIONS OVERLAY & LEGEND PANEL
+       ========================================================================= */
+    .anno-target {
+      position: relative;
+    }
+
+    .anno-badge {
+      position: absolute;
+      top: -7px;
+      right: -7px;
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      background: #dc2626;
+      color: #ffffff;
+      border: 2px solid #0d1117;
+      font-size: 11.5px;
+      font-weight: 800;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 35;
+      pointer-events: none;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.6);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .anno-badge.inset {
+      top: 6px;
+      right: 6px;
+    }
+
+    .cat-tag .anno-badge {
+      top: -10px;
+      right: -16px;
+    }
+
+    .bottom-nav > .anno-badge {
+      top: -11px;
+      right: 12px;
+    }
+
+    .signin-sub .anno-badge {
+      top: -14px;
+      right: -16px;
+    }
+
+    .case-select-btn {
+      font-weight: 700;
+      color: #93c5fd;
+      text-decoration: underline;
+      text-underline-offset: 2px;
+      padding: 4px 2px;
+      min-height: 36px;
+      display: inline-flex;
+      align-items: center;
+    }
+
+    body.annotations-on .anno-badge {
+      display: inline-flex;
+    }
+
+    .annotations-panel {
+      width: 280px;
+      background: var(--bg-sidebar);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      padding: 16px;
+      display: none;
+      flex-direction: column;
+      gap: 12px;
+      align-self: center;
+    }
+
+    body.annotations-on .annotations-panel {
+      display: flex;
+    }
+
+    .annotations-panel-title {
+      margin: 0;
+      font-size: 14.5px;
+      font-weight: 700;
+      color: var(--text-primary);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .anno-legend-list {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .anno-legend-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      font-size: 13px;
+      color: var(--text-secondary);
+      line-height: 1.4;
+    }
+
+    .anno-legend-num {
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: #dc2626;
+      color: #ffffff;
+      font-size: 11px;
+      font-weight: 800;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+
+    /* =========================================================================
+       7. RESPONSIVE MEDIA QUERIES (TABLET & MOBILE DEMO SUPPORT)
+       ========================================================================= */
+    @media (max-width: 1023px) {
+      .workspace {
+        flex-direction: column;
+      }
+
+      .mobile-bar {
+        display: flex;
+      }
+
+      .sidebar {
+        display: none;
+        width: 100%;
+        height: auto;
+        position: static;
+        border-right: none;
+        border-bottom: 1px solid var(--border-subtle);
+      }
+
+      .sidebar.mobile-open {
+        display: flex;
+      }
+
+      .stage {
+        padding: 18px 12px 32px;
+        flex-direction: column;
+      }
+
+      .mod-layout {
+        grid-template-columns: 1fr;
+      }
+
+      .mod-left {
+        border-right: none;
+        border-bottom: 1px solid var(--border-subtle);
+      }
+
+      .admin-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .annotations-panel {
+        width: 100%;
+        max-width: 520px;
+      }
+    }
+
+    @media (max-width: 460px) {
+      .phone-frame {
+        width: 100%;
+        height: 760px;
+        border-radius: 28px;
+        border-width: 5px;
+      }
+
+      .browser-frame {
+        max-height: none;
+      }
+
+      .role-row-controls {
+        flex: 1 1 100% !important;
+        width: 100%;
+        justify-content: space-between !important;
+      }
+
+      .role-row-controls .select {
+        max-width: none !important;
+        flex: 1;
+      }
+    }
+  </style>
+</head>
+<body>
+  <!-- Mobile Presenter Header (visible < 1024px) -->
+  <div class="mobile-bar">
+    <div style="min-width:0; display:flex; align-items:center; gap:8px; overflow:hidden;">
+      <strong style="font-size:15px; white-space:nowrap;">Threads+ Demo</strong>
+      <span id="mobile-screen-label" style="font-size:12.5px; color:var(--text-secondary); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">1 / 10</span>
+    </div>
+    <button type="button" id="mobile-menu-toggle" class="ctrl-btn btn-sm" style="white-space:nowrap; flex-shrink:0;" aria-expanded="false" aria-controls="demo-sidebar">
+      Demo controls
+    </button>
+  </div>
+
+  <div class="workspace">
+    <!-- Left Sidebar: Demo Controls -->
+    <aside id="demo-sidebar" class="sidebar" aria-label="Demo controls">
+      <div class="sidebar-header">
+        <div>
+          <h1 class="sidebar-title">Demo controls</h1>
+          <p class="sidebar-sub">Threads+ offline prototype</p>
+        </div>
+      </div>
+
+      <nav aria-label="Prototype screens">
+        <ul id="screen-nav-list" class="screen-list"></ul>
+      </nav>
+
+      <div class="sidebar-controls-group">
+        <div class="prev-next-row">
+          <button type="button" id="btn-prev-screen" class="ctrl-btn" aria-label="Previous screen">
+            &#8592; Previous
+          </button>
+          <button type="button" id="btn-next-screen" class="ctrl-btn" aria-label="Next screen">
+            Next &#8594;
+          </button>
+        </div>
+
+        <label class="ctrl-toggle-label">
+          <span>Simulate failed sign-in</span>
+          <input type="checkbox" id="chk-simulate-fail" />
+        </label>
+
+        <label class="ctrl-toggle-label">
+          <span>Annotations</span>
+          <input type="checkbox" id="chk-annotations" />
+        </label>
+
+        <button type="button" id="btn-reset-demo" class="ctrl-btn ctrl-btn-danger">
+          Reset Demo
+        </button>
+
+        <p class="kbd-hint">Tip: Use &#8592; / &#8594; arrow keys to switch screens</p>
+      </div>
+    </aside>
+
+    <!-- Center Stage: Active Frame + Annotations Legend -->
+    <main class="stage" id="stage">
+      <!-- Phone Frame (Screens 1-8) or Desktop Browser Frame (Screens 9-10) rendered here -->
+      <div id="frame-mount"></div>
+
+      <!-- Annotations Caption List beside the frame -->
+      <aside id="annotations-panel" class="annotations-panel" aria-label="Screen annotations">
+        <h2 class="annotations-panel-title">
+          <span class="anno-legend-num" aria-hidden="true">i</span>
+          <span id="anno-screen-heading">Annotations</span>
+        </h2>
+        <ol id="anno-legend-list" class="anno-legend-list"></ol>
+      </aside>
+    </main>
+  </div>
+
+  <script>
+    /* =========================================================================
+       SAMPLE DATA ARRAYS (EASY TO EDIT FOR PRESENTATION)
+       ========================================================================= */
+
+    // Screen metadata & annotation captions
+    const SCREENS = [
+      { id: 1, name: "Sign-in", device: "phone" },
+      { id: 2, name: "Create post", device: "phone" },
+      { id: 3, name: "Category feed", device: "phone" },
+      { id: 4, name: "Tune your feed", device: "phone" },
+      { id: 5, name: "History search", device: "phone" },
+      { id: 6, name: "Notifications", device: "phone" },
+      { id: 7, name: "Privacy dashboard", device: "phone" },
+      { id: 8, name: "Report a post", device: "phone" },
+      { id: 9, name: "Moderation queue", device: "desktop", url: "threadsplus.example/moderation" },
+      { id: 10, name: "Admin panel", device: "desktop", url: "threadsplus.example/admin" }
+    ];
+
+    const SCREEN_ANNOTATIONS = {
+      1: [
+        "Clear assurance that Threads+ never sees or stores your Instagram password.",
+        "Primary Navy CTA initiates OAuth sign-in (first attempt demonstrates error recovery).",
+        "Progressive disclosure link explains why Instagram sign-in is used.",
+        "Error state uses explicit wording and warning icon, never colour alone."
+      ],
+      2: [
+        "Header pairs non-destructive Cancel with the disabled-until-valid Post CTA.",
+        "Live character counter enforces the 1,000-character limit in real time.",
+        "Required category selector shows inline validation if text is entered first.",
+        "Pre-publication notice informs users of automated safety screening."
+      ],
+      3: [
+        "Category tabs (Global first) trigger a 1.5s skeleton placeholder while filtering.",
+        "Coloured category tag lets readers scan topics quickly.",
+        "Interactive Like, Reply, and Repost controls update counts immediately.",
+        "Overflow (...) menu connects directly to Tune your feed and Report.",
+        "Fixed bottom navigation links Home, Search, New, Alerts, and Profile."
+      ],
+      4: [
+        "Red-outlined Block card prevents accidental taps on an irreversible filter.",
+        "Quiet reduces similar posts without fully blocking the author.",
+        "Question surfaces algorithmic transparency for why a post appeared.",
+        "5-second green toast includes Undo to immediately reverse any tuning action."
+      ],
+      5: [
+        "Keyword search filters across post text and author handles.",
+        "Multi-select interaction chips narrow history by Viewed, Liked, or Commented.",
+        "Date validation blocks invalid ranges (From > To) and disables Search.",
+        "Results count and Reset filters link keep exploration fast and reversible."
+      ],
+      6: [
+        "Mark all as read clears unread status only for the active notification tab.",
+        "Category tabs carry live unread count badges.",
+        "Unread rows pair a blue dot and tinted card with an explicit Unread label.",
+        "Bottom tip guides users to security and moderation notices under System."
+      ],
+      7: [
+        "Partner data sharing defaults to Off (privacy by default).",
+        "Personalised recommendations toggle lets users opt out of feed tuning.",
+        "Segmented Account visibility control requires confirmation before going Public.",
+        "Plain-English summary sentence updates immediately after every change."
+      ],
+      8: [
+        "Context card shows the reported post before and after submission.",
+        "Confirmation modal warns that reporting cannot be undone (red Report CTA).",
+        "Acknowledgement displays Case C-1042 and blocks duplicate reports with amber warning.",
+        "Flagged-for-review banner stays visible on the post after reporting."
+      ],
+      9: [
+        "Status tabs (Open / In review / Closed) filter the queue alongside SLA targets.",
+        "Selectable case table highlights the active row and loads its review panel.",
+        "Risk chips surface Flagged account and Bot alert signals.",
+        "Fact-check integration transitions from not requested to Pending.",
+        "Decision selector requires explicit confirmation before Suspend can be submitted."
+      ],
+      10: [
+        "Category manager validates required, unique, max 50-char category names.",
+        "Role editor warns before removing Moderator or Administrator privileges.",
+        "Platform health tiles turn green with explicit Target met labels.",
+        "Access audit log records every role change and supports report export."
+      ]
+    };
+
+    const INITIAL_POSTS = [
+      {
+        id: "p1",
+        author: "alex_12",
+        category: "Tech",
+        time: "2 h ago",
+        text: "New release notes for the framework are out!",
+        likes: 24,
+        reposts: 5,
+        liked: false,
+        reposted: false,
+        replies: [
+          { author: "slow.codes", text: "The faster build step is huge." }
+        ]
+      },
+      {
+        id: "p2",
+        author: "slow.codes",
+        category: "Tech",
+        time: "4 h ago",
+        text: "Let's learn how python works.",
+        likes: 19,
+        reposts: 3,
+        liked: false,
+        reposted: false,
+        replies: []
+      },
+      {
+        id: "p3",
+        author: "civic.wire",
+        category: "News",
+        time: "5 h ago",
+        text: "City council approves expanded night transit routes starting next month.",
+        likes: 41,
+        reposts: 12,
+        liked: false,
+        reposted: false,
+        replies: []
+      },
+      {
+        id: "p4",
+        author: "daily.brief",
+        category: "News",
+        time: "7 h ago",
+        text: "Global semiconductor supply forecasts point to steadier lead times in Q4.",
+        likes: 15,
+        reposts: 4,
+        liked: false,
+        reposted: false,
+        replies: []
+      },
+      {
+        id: "p5",
+        author: "may",
+        category: "Personal",
+        time: "8 h ago",
+        text: "Made homemade ramen from scratch for the first time tonight — worth the 4-hour broth.",
+        likes: 33,
+        reposts: 2,
+        liked: false,
+        reposted: false,
+        replies: []
+      },
+      {
+        id: "p6",
+        author: "lina.h",
+        category: "Personal",
+        time: "Yesterday",
+        text: "Morning walk before lectures really helps clear my head.",
+        likes: 28,
+        reposts: 1,
+        liked: false,
+        reposted: false,
+        replies: []
+      }
+    ];
+
+    const INITIAL_HISTORY = [
+      {
+        id: "h1",
+        author: "alex_12",
+        category: "Tech",
+        action: "Viewed",
+        date: "2026-10-14",
+        dateLabel: "Viewed 14 Oct",
+        text: "New release notes for the framework are out!"
+      },
+      {
+        id: "h2",
+        author: "slow.codes",
+        category: "Tech",
+        action: "Viewed",
+        date: "2026-10-12",
+        dateLabel: "Viewed 12 Oct",
+        text: "Let's learn how python works."
+      },
+      {
+        id: "h3",
+        author: "civic.wire",
+        category: "News",
+        action: "Viewed",
+        date: "2026-10-10",
+        dateLabel: "Viewed 10 Oct",
+        text: "City council approves expanded night transit routes starting next month."
+      },
+      {
+        id: "h4",
+        author: "may",
+        category: "Personal",
+        action: "Liked",
+        date: "2026-10-15",
+        dateLabel: "Liked 15 Oct",
+        text: "Made homemade ramen from scratch for the first time tonight — worth the 4-hour broth."
+      },
+      {
+        id: "h5",
+        author: "daily.brief",
+        category: "News",
+        action: "Liked",
+        date: "2026-10-11",
+        dateLabel: "Liked 11 Oct",
+        text: "Global semiconductor supply forecasts point to steadier lead times in Q4."
+      },
+      {
+        id: "h6",
+        author: "dev_kyle",
+        category: "Tech",
+        action: "Liked",
+        date: "2026-10-08",
+        dateLabel: "Liked 08 Oct",
+        text: "Clean offline-first state management patterns for web prototypes."
+      },
+      {
+        id: "h7",
+        author: "lina.h",
+        category: "Personal",
+        action: "Commented",
+        date: "2026-10-09",
+        dateLabel: "Commented 09 Oct",
+        text: "Morning walk before lectures really helps clear my head."
+      },
+      {
+        id: "h8",
+        author: "sam.codes",
+        category: "Tech",
+        action: "Commented",
+        date: "2026-10-05",
+        dateLabel: "Commented 05 Oct",
+        text: "Why keyboard navigation and WCAG contrast matter in university demos."
+      }
+    ];
+
+    const INITIAL_NOTIFICATIONS = [
+      { id: "n1", tab: "Interaction", text: "slow.codes liked your post, 2 h ago", unread: false },
+      { id: "n2", tab: "Interaction", text: "may replied: 'Great tip, thanks!', 5 h ago", unread: true },
+      { id: "n3", tab: "Interaction", text: "alex_12 reposted your post, Yesterday", unread: true },
+      { id: "n4", tab: "Interaction", text: "lina.h liked your reply, 2 days ago", unread: false },
+      { id: "n5", tab: "Mentions", text: "sam.codes mentioned you: '@you check out these Python notes!', 4 h ago", unread: true },
+      { id: "n6", tab: "System", text: "Security notice: New sign-in from Instagram OAuth on Chrome, Today", unread: true },
+      { id: "n7", tab: "System", text: "Moderation outcome: Your earlier report (Case C-1038) was reviewed and actioned, 3 days ago", unread: true }
+    ];
+
+    const REPORT_DEFAULT_POST = {
+      id: "p_report_1042",
+      author: "unknown_acct",
+      category: "News",
+      time: "3 h ago",
+      text: "Win a free phone! Click the link in my bio now!!"
+    };
+
+    const INITIAL_CASES = [
+      {
+        id: "C-1042",
+        targetPost: "Free phone scam",
+        fullText: "Win a free phone! Click the link in my bio now!!",
+        author: "unknown_acct",
+        category: "News",
+        reportedBy: "maya",
+        status: "Open",
+        age: "3 h",
+        chips: ["Account: Flagged", "Bot alert"],
+        factCheckStatus: "not requested",
+        factCheckNote: "",
+        decision: ""
+      },
+      {
+        id: "C-1041",
+        targetPost: "Miracle cure claim",
+        fullText: "This common kitchen spice cures all infections overnight — doctors don't want you to know!",
+        author: "health_buzz99",
+        category: "News",
+        reportedBy: "lee.k",
+        status: "Open",
+        age: "9 h",
+        chips: ["Account: Flagged", "Bot alert"],
+        factCheckStatus: "not requested",
+        factCheckNote: "",
+        decision: ""
+      },
+      {
+        id: "C-1039",
+        targetPost: "Fake giveaway acct",
+        fullText: "Reply with your bank tag to claim $500 student grant immediately.",
+        author: "grant_helper_0",
+        category: "Personal",
+        reportedBy: "sam.codes",
+        status: "In review",
+        age: "1 d",
+        chips: ["Account: Flagged", "Bot alert"],
+        factCheckStatus: "Pending",
+        factCheckNote: "Sent to Fact-Checking Partner",
+        decision: ""
+      },
+      {
+        id: "C-1037",
+        targetPost: "Election claim",
+        fullText: "Polling station hours were moved to Tuesday only in all downtown districts.",
+        author: "vote_alert_26",
+        category: "News",
+        reportedBy: "alex_dev",
+        status: "Open",
+        age: "11 h",
+        chips: ["Account: Flagged", "Bot alert"],
+        factCheckStatus: "not requested",
+        factCheckNote: "",
+        decision: ""
+      },
+      {
+        id: "C-1034",
+        targetPost: "Duplicate spam link",
+        fullText: "Cheap essay services 90% off today only!! Visit link shortener now.",
+        author: "promo_bot_44",
+        category: "Tech",
+        reportedBy: "nora",
+        status: "Open",
+        age: "2 d",
+        chips: ["Account: Flagged", "Bot alert"],
+        factCheckStatus: "not requested",
+        factCheckNote: "",
+        decision: ""
+      }
+    ];
+
+    const INITIAL_CATEGORIES = [
+      { name: "Global", countLabel: "system", isSystem: true },
+      { name: "Tech", countLabel: "124k posts", isSystem: false },
+      { name: "News", countLabel: "98k posts", isSystem: false },
+      { name: "Personal", countLabel: "210k posts", isSystem: false }
+    ];
+
+    const INITIAL_USERS = [
+      { username: "maya", role: "Moderator", pendingRole: "Moderator" },
+      { username: "lee.k", role: "End-User", pendingRole: "End-User" },
+      { username: "admin_01", role: "Administrator", pendingRole: "Administrator" }
+    ];
+
+    const INITIAL_AUDIT_LOG = [
+      { id: "L-9001", user: "maya", action: "Sign-in" },
+      { id: "L-9002", user: "admin_01", action: "Role change" },
+      { id: "L-9003", user: "lee.k", action: "Sign-in" }
+    ];
+
+    /* =========================================================================
+       APPLICATION STATE & PURE HELPERS
+       ========================================================================= */
+    function deepClone(obj) {
+      return JSON.parse(JSON.stringify(obj));
+    }
+
+    function createInitialState() {
+      return {
+        currentScreen: 1,
+        annotationsOn: false,
+        simulateSignInFail: false,
+
+        // Screen 1: Sign-in
+        signInAttempts: 0,
+        signInError: false,
+        whyInstagramOpen: false,
+
+        // Screen 2: Create post
+        draftText: "",
+        draftCategory: null,
+
+        // Screen 3 & 4: Feed & Tune
+        posts: deepClone(INITIAL_POSTS),
+        feedTab: "Global",
+        feedLoading: false,
+        openPostMenuId: null,
+        openReplyPostId: null,
+        replyDrafts: {},
+        blockedAuthors: [],
+        quietedPostIds: [],
+        tuneTargetPostId: "p1",
+        tuneQuestionText: "",
+
+        // Screen 5: History search (starts with Viewed selected -> 3 results)
+        historyItems: deepClone(INITIAL_HISTORY),
+        searchDraft: {
+          keyword: "",
+          actions: ["Viewed"],
+          from: "",
+          to: "",
+          category: "All categories"
+        },
+        searchApplied: {
+          keyword: "",
+          actions: ["Viewed"],
+          from: "",
+          to: "",
+          category: "All categories"
+        },
+
+        // Screen 6: Notifications
+        notifications: deepClone(INITIAL_NOTIFICATIONS),
+        notifTab: "Interaction",
+
+        // Screen 7: Privacy
+        privacy: {
+          sharePartners: false,
+          personalisedRecs: true,
+          visibility: "Followers"
+        },
+        publicConfirmOpen: false,
+
+        // Screen 8: Report
+        reportTargetPost: deepClone(REPORT_DEFAULT_POST),
+        reportDialogOpen: true,
+        reportedPostIds: [],
+        reportAmberMsg: "",
+        reportGreenMsg: "",
+
+        // Screen 9: Moderation
+        modTab: "Open",
+        cases: deepClone(INITIAL_CASES),
+        selectedCaseId: "C-1042",
+        modDraftDecision: "",
+        modSuspendConfirmed: false,
+        previousActions: [],
+
+        // Screen 10: Admin
+        categories: deepClone(INITIAL_CATEGORIES),
+        newCategoryName: "",
+        categoryError: "",
+        users: deepClone(INITIAL_USERS),
+        roleConfirmModal: null, // { username, oldRole, newRole }
+        auditLog: deepClone(INITIAL_AUDIT_LOG),
+        nextLogNumber: 9004,
+
+        // Toast
+        toast: null // { message, tone: 'green'|'amber', undoFn: fn|null }
+      };
+    }
+
+    let state = createInitialState();
+    let feedLoadingTimer = null;
+    let toastTimer = null;
+
+    function escapeHtml(str) {
+      return String(str)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+    }
+
+    function initials(username) {
+      const clean = String(username || "U").replace(/[^a-zA-Z0-9]/g, "");
+      return (clean.slice(0, 2) || "U").toUpperCase();
+    }
+
+    function catClass(cat) {
+      if (cat === "Tech" || cat === "News" || cat === "Personal") return "cat-" + cat;
+      return "cat-Custom";
+    }
+
+    function showToast(message, options = {}) {
+      if (toastTimer) clearTimeout(toastTimer);
+      state.toast = {
+        message,
+        tone: options.tone || "green",
+        undoAction: options.undoAction || null
+      };
+      renderToastOnly();
+      const duration = options.duration || 3600;
+      toastTimer = setTimeout(() => {
+        state.toast = null;
+        renderToastOnly();
+      }, duration);
+    }
+
+    function clearToast() {
+      if (toastTimer) clearTimeout(toastTimer);
+      state.toast = null;
+      renderToastOnly();
+    }
+
+    function getFeedCategories() {
+      return state.categories.map(c => c.name);
+    }
+
+    function getPostableCategories() {
+      return state.categories.filter(c => !c.isSystem).map(c => c.name);
+    }
+
+    function getUnreadCount(tabName) {
+      return state.notifications.filter(n => n.tab === tabName && n.unread).length;
+    }
+
+    function getTotalUnreadCount() {
+      return state.notifications.filter(n => n.unread).length;
+    }
+
+    function filterHistoryItems(items, criteria) {
+      const kw = (criteria.keyword || "").trim().toLowerCase();
+      return items.filter(item => {
+        if (kw && !item.text.toLowerCase().includes(kw) && !item.author.toLowerCase().includes(kw)) {
+          return false;
+        }
+        if (criteria.actions && criteria.actions.length > 0 && !criteria.actions.includes(item.action)) {
+          return false;
+        }
+        if (criteria.category && criteria.category !== "All categories" && item.category !== criteria.category) {
+          return false;
+        }
+        if (criteria.from && item.date < criteria.from) {
+          return false;
+        }
+        if (criteria.to && item.date > criteria.to) {
+          return false;
+        }
+        return true;
+      });
+    }
+
+    function roleRank(role) {
+      if (role === "Administrator") return 3;
+      if (role === "Moderator") return 2;
+      return 1;
+    }
+
+    function annoBadge(num, inset = false) {
+      return `<span class="anno-badge${inset ? " inset" : ""}" aria-hidden="true">${num}</span>`;
+    }
+
+    /* =========================================================================
+       NAVIGATION & SHELL RENDERING
+       ========================================================================= */
+    function goToScreen(id) {
+      if (id < 1 || id > 10) return;
+      if (feedLoadingTimer) {
+        clearTimeout(feedLoadingTimer);
+        feedLoadingTimer = null;
+      }
+      state.feedLoading = false;
+      state.openPostMenuId = null;
+      state.currentScreen = id;
+
+      // Keep Screen 8 report dialog open if not yet reported when visiting directly
+      if (id === 8) {
+        const alreadyReported = state.reportedPostIds.includes(state.reportTargetPost.id);
+        state.reportDialogOpen = !alreadyReported;
+      }
+      render();
+    }
+
+    function renderSidebar() {
+      const list = document.getElementById("screen-nav-list");
+      list.innerHTML = SCREENS.map(s => {
+        const active = s.id === state.currentScreen ? " active" : "";
+        const typeLabel = s.device === "desktop" ? "Desktop" : "Mobile";
+        return `
+          <li>
+            <button type="button" class="screen-nav-btn${active}" data-nav-screen="${s.id}">
+              <span class="screen-num">${s.id}</span>
+              <span>${escapeHtml(s.name)}</span>
+              <span class="screen-type-label">${typeLabel}</span>
+            </button>
+          </li>
+        `;
+      }).join("");
+
+      document.getElementById("btn-prev-screen").disabled = state.currentScreen <= 1;
+      document.getElementById("btn-next-screen").disabled = state.currentScreen >= 10;
+      document.getElementById("chk-simulate-fail").checked = state.simulateSignInFail;
+      document.getElementById("chk-annotations").checked = state.annotationsOn;
+      document.body.classList.toggle("annotations-on", state.annotationsOn);
+
+      const cur = SCREENS.find(s => s.id === state.currentScreen);
+      document.getElementById("mobile-screen-label").textContent = `${cur.id} / 10 · ${cur.name}`;
+    }
+
+    function renderAnnotationsPanel() {
+      const cur = SCREENS.find(s => s.id === state.currentScreen);
+      document.getElementById("anno-screen-heading").textContent = `Screen ${cur.id}: ${cur.name}`;
+      const captions = SCREEN_ANNOTATIONS[state.currentScreen] || [];
+      document.getElementById("anno-legend-list").innerHTML = captions.map((text, idx) => `
+        <li class="anno-legend-item">
+          <span class="anno-legend-num">${idx + 1}</span>
+          <span>${escapeHtml(text)}</span>
+        </li>
+      `).join("");
+    }
+
+    function renderToastMarkup() {
+      if (!state.toast) return "";
+      const cls = state.toast.tone === "amber" ? "toast toast-amber" : "toast";
+      const undoHtml = state.toast.undoAction
+        ? `<button type="button" class="toast-undo-btn" id="btn-toast-undo">Undo</button>`
+        : "";
+      return `
+        <div class="${cls}" role="status" aria-live="polite">
+          <span>${escapeHtml(state.toast.message)}</span>
+          ${undoHtml}
+        </div>
+      `;
+    }
+
+    function renderToastOnly() {
+      const host = document.getElementById("toast-host");
+      if (host) {
+        host.innerHTML = renderToastMarkup();
+      }
+    }
+
+    function renderBottomNav(activeScreenId) {
+      const unreadTotal = getTotalUnreadCount();
+      const items = [
+        { screen: 3, label: "Home", icon: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 9.5L12 3l9 6.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1V9.5z"/></svg>` },
+        { screen: 5, label: "Search", icon: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>` },
+        { screen: 2, label: "New", icon: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="5"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>` },
+        { screen: 6, label: "Alerts", badge: unreadTotal, icon: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>` },
+        { screen: 7, label: "Profile", icon: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-6 8-6s8 2 8 6"/></svg>` }
+      ];
+      return `
+        <nav class="bottom-nav anno-target" aria-label="Primary app navigation">
+          ${activeScreenId === 3 ? annoBadge(5, true) : ""}
+          ${items.map(it => `
+            <button type="button" class="bottom-nav-btn${activeScreenId === it.screen ? " active" : ""}" data-nav-screen="${it.screen}">
+              ${it.icon}
+              <span>${it.label}</span>
+              ${it.badge ? `<span class="nav-badge" aria-label="${it.badge} unread">${it.badge}</span>` : ""}
+            </button>
+          `).join("")}
+        </nav>
+      `;
+    }
+
+    /* =========================================================================
+       SCREEN 1: SIGN-IN
+       ========================================================================= */
+    function renderScreen1() {
+      const errHtml = state.signInError ? `
+        <div class="msg-box msg-error anno-target" role="alert">
+          ${annoBadge(4)}
+          <span aria-hidden="true" style="font-weight:800;">!</span>
+          <div>
+            <strong>Sign-in error:</strong> Sign-in failed. Check your Instagram details and try again.
+          </div>
+        </div>
+      ` : "";
+
+      const whyHtml = state.whyInstagramOpen ? `
+        <div class="msg-box msg-info" role="region" aria-label="Instagram sign-in explanation">
+          <div>
+            <strong>Why Instagram sign-in?</strong><br/>
+            Threads+ uses an encrypted sign-in token from your Instagram account so you don't need a new password. Threads+ never sees or stores your password.
+            <div style="margin-top:8px;">
+              <button type="button" id="btn-close-why" class="btn btn-secondary btn-sm">Close explanation</button>
+            </div>
+          </div>
+        </div>
+      ` : "";
+
+      return `
+        <div class="signin-wrap">
+          <div class="signin-hero">
+            <div class="signin-logo" aria-hidden="true">
+              <svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path
+                  d="M 37 35 C 41 30, 46 28, 52 29 C 62 30, 66 38, 66 51 C 66 64, 57 72, 45 72 C 35 72, 29 66, 29 59 C 29 52, 36 48, 49 48 C 63 48, 76 52, 84 60 C 89 65, 88 73, 81 80 C 73 88, 62 91, 50 91 C 26 91, 11 74, 11 50 C 11 26, 26 9, 51 9 C 66 9, 77 14, 84 22"
+                  stroke="#ffffff"
+                  stroke-width="9"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                />
+              </svg>
+            </div>
+            <h2 class="signin-title">Threads+</h2>
+            <p class="signin-sub anno-target">
+              ${annoBadge(1)}
+              Threads+ never sees or stores your password
+            </p>
+          </div>
+
+          ${errHtml}
+
+          <button type="button" id="btn-signin-ig" class="btn btn-navy btn-block anno-target">
+            ${annoBadge(2)}
+            Continue with Instagram
+          </button>
+
+          <div style="text-align:center;" class="anno-target">
+            ${annoBadge(3)}
+            <button type="button" id="btn-why-ig" class="text-link-btn" aria-expanded="${state.whyInstagramOpen}">
+              Why do I sign in with Instagram?
+            </button>
+          </div>
+
+          ${whyHtml}
+        </div>
+      `;
+    }
+
+    /* =========================================================================
+       SCREEN 2: CREATE POST
+       ========================================================================= */
+    function renderScreen2() {
+      const len = state.draftText.length;
+      const hasText = state.draftText.trim().length > 0;
+      const missingCategory = state.draftText.length > 0 && !state.draftCategory;
+      const canPost = hasText && Boolean(state.draftCategory);
+      const cats = getPostableCategories();
+
+      return `
+        <header class="app-header anno-target">
+          ${annoBadge(1, true)}
+          <button type="button" id="btn-cancel-post" class="btn btn-ghost btn-sm">Cancel</button>
+          <h2 class="app-header-title">New post</h2>
+          <button type="button" id="btn-submit-post" class="btn btn-navy btn-sm" ${canPost ? "" : "disabled"}>Post</button>
+        </header>
+
+        <div class="screen-scroll" style="display:flex; flex-direction:column; gap:16px;">
+          <div class="anno-target">
+            ${annoBadge(2)}
+            <label for="create-post-textarea" class="field-label">Share your thoughts</label>
+            <textarea
+              id="create-post-textarea"
+              class="textarea"
+              maxlength="1000"
+              placeholder="Write a post for the community..."
+            >${escapeHtml(state.draftText)}</textarea>
+            <div style="display:flex; justify-content:flex-end; margin-top:6px;">
+              <span id="post-char-counter" class="tabular-nums" style="font-size:12.5px; color:var(--text-secondary);">
+                ${len} / 1000
+              </span>
+            </div>
+          </div>
+
+          <div class="anno-target">
+            ${annoBadge(3)}
+            <span class="field-label">Category (required)</span>
+            <div class="chip-group" role="group" aria-label="Post category">
+              ${cats.map(cat => `
+                <button
+                  type="button"
+                  class="chip-btn${state.draftCategory === cat ? " selected" : ""}"
+                  data-select-post-cat="${escapeHtml(cat)}"
+                  aria-pressed="${state.draftCategory === cat}"
+                >${escapeHtml(cat)}</button>
+              `).join("")}
+            </div>
+            <div id="create-cat-error" class="inline-error" style="${missingCategory ? "" : "display:none;"}" role="alert">
+              <span aria-hidden="true">!</span> Choose a category before posting.
+            </div>
+          </div>
+
+          <p class="anno-target" style="margin:0; font-size:12.5px; color:var(--text-secondary); background:var(--bg-card); border:1px solid var(--border-subtle); padding:10px 12px; border-radius:8px;">
+            ${annoBadge(4)}
+            Your post will be screened automatically before it appears.
+          </p>
+        </div>
+
+        ${renderBottomNav(2)}
+      `;
+    }
+
+    /* =========================================================================
+       SCREEN 3: MULTI-TAB CATEGORY FEED (+ SCREEN 4 SHEET HOST)
+       ========================================================================= */
+    function renderPostCard(post, showTuneAnnotations) {
+      const isQuieted = state.quietedPostIds.includes(post.id);
+      const isFlagged = state.reportedPostIds.includes(post.id);
+      const menuOpen = state.openPostMenuId === post.id;
+      const replyOpen = state.openReplyPostId === post.id;
+      const replyDraft = state.replyDrafts[post.id] || "";
+
+      return `
+        <article class="post-card${isQuieted ? " quieted" : ""}" data-post-id="${post.id}">
+          ${isFlagged ? `
+            <div class="msg-box msg-amber" style="padding:8px 10px; font-size:12.5px;">
+              <span aria-hidden="true">!</span>
+              <span>This post has been flagged for review</span>
+            </div>
+          ` : ""}
+          ${isQuieted ? `
+            <div style="font-size:12px; color:var(--text-muted);">
+              Fewer posts like this will appear in your feed.
+            </div>
+          ` : ""}
+
+          <div class="post-top">
+            <div class="post-author-row">
+              <div class="avatar" aria-hidden="true">${initials(post.author)}</div>
+              <div class="post-meta">
+                <div class="post-user-line">
+                  <span class="post-username">${escapeHtml(post.author)}</span>
+                  <span class="cat-tag ${catClass(post.category)} anno-target">
+                    ${showTuneAnnotations ? annoBadge(2) : ""}
+                    ${escapeHtml(post.category)}
+                  </span>
+                </div>
+                <span class="post-time">${escapeHtml(post.time)}</span>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              class="more-btn anno-target"
+              data-toggle-post-menu="${post.id}"
+              aria-label="More options for ${escapeHtml(post.author)}'s post"
+              aria-expanded="${menuOpen}"
+            >
+              ${showTuneAnnotations ? annoBadge(4) : ""}
+              &hellip;
+            </button>
+          </div>
+
+          ${menuOpen ? `
+            <div class="post-menu" role="menu">
+              <button type="button" class="post-menu-item" role="menuitem" data-open-tune="${post.id}">
+                Tune your feed
+              </button>
+              <button type="button" class="post-menu-item danger" role="menuitem" data-open-report="${post.id}">
+                Report
+              </button>
+            </div>
+          ` : ""}
+
+          <p class="post-text">${escapeHtml(post.text)}</p>
+
+          <div class="post-actions anno-target">
+            ${showTuneAnnotations ? annoBadge(3) : ""}
+            <button type="button" class="post-action-btn${post.liked ? " liked" : ""}" data-like-post="${post.id}" aria-pressed="${post.liked}">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="${post.liked ? "currentColor" : "none"}" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78L12 21.23l8.84-8.84a5.5 5.5 0 0 0 0-7.78z"/></svg>
+              <span>Like</span>
+              <span class="tabular-nums">${post.likes}</span>
+            </button>
+
+            <button type="button" class="post-action-btn" data-toggle-reply="${post.id}" aria-expanded="${replyOpen}">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+              <span>Reply</span>
+              <span class="tabular-nums">${post.replies.length}</span>
+            </button>
+
+            <button type="button" class="post-action-btn${post.reposted ? " reposted" : ""}" data-repost-post="${post.id}" aria-pressed="${post.reposted}">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
+              <span>Repost</span>
+              <span class="tabular-nums">${post.reposts}</span>
+            </button>
+          </div>
+
+          ${replyOpen ? `
+            <div style="display:flex; flex-direction:column; gap:8px;">
+              ${post.replies.length > 0 ? `
+                <div class="reply-list">
+                  ${post.replies.map(r => `
+                    <div class="reply-item">
+                      <strong>${escapeHtml(r.author)}</strong>: ${escapeHtml(r.text)}
+                    </div>
+                  `).join("")}
+                </div>
+              ` : ""}
+              <div class="reply-box">
+                <input
+                  type="text"
+                  class="input"
+                  style="min-height:40px; padding:6px 10px;"
+                  placeholder="Write a reply..."
+                  aria-label="Reply to ${escapeHtml(post.author)}"
+                  data-reply-input="${post.id}"
+                  value="${escapeHtml(replyDraft)}"
+                />
+                <button type="button" class="btn btn-navy btn-sm" data-send-reply="${post.id}">Send</button>
+              </div>
+            </div>
+          ` : ""}
+        </article>
+      `;
+    }
+
+    function renderScreen3(isUnderSheet = false) {
+      const tabs = getFeedCategories();
+      const visiblePosts = state.posts.filter(p => {
+        if (state.blockedAuthors.includes(p.author)) return false;
+        if (state.feedTab === "Global") return true;
+        return p.category === state.feedTab;
+      });
+
+      let bodyHtml = "";
+      if (state.feedLoading) {
+        bodyHtml = `
+          <div class="post-list" aria-busy="true" aria-label="Loading posts">
+            <div style="font-size:13px; color:var(--text-secondary); font-weight:600;">Loading...</div>
+            ${[1, 2, 3].map(() => `
+              <div class="skeleton-card">
+                <div style="display:flex; align-items:center; gap:10px;">
+                  <div class="skel-bar" style="width:36px; height:36px; border-radius:50%;"></div>
+                  <div style="flex:1; display:flex; flex-direction:column; gap:6px;">
+                    <div class="skel-bar" style="width:45%;"></div>
+                    <div class="skel-bar" style="width:25%; height:10px;"></div>
+                  </div>
+                </div>
+                <div class="skel-bar" style="width:92%;"></div>
+                <div class="skel-bar" style="width:74%;"></div>
+              </div>
+            `).join("")}
+          </div>
+        `;
+      } else if (visiblePosts.length === 0) {
+        bodyHtml = `
+          <div class="post-card" style="text-align:center; padding:28px 18px; align-items:center;">
+            <p style="margin:0; font-size:15px; font-weight:700;">No posts in ${escapeHtml(state.feedTab)} yet</p>
+            <p style="margin:4px 0 12px; font-size:13.5px; color:var(--text-secondary);">
+              ${state.blockedAuthors.length > 0 ? "Posts may be hidden because you blocked an account." : "Be the first to share something in this category."}
+            </p>
+            <div style="display:flex; gap:8px; flex-wrap:wrap; justify-content:center;">
+              <button type="button" class="btn btn-navy btn-sm" data-nav-screen="2">Create post</button>
+              ${state.blockedAuthors.length > 0 ? `<button type="button" id="btn-unblock-all" class="btn btn-secondary btn-sm">Restore blocked accounts</button>` : ""}
+            </div>
+          </div>
+        `;
+      } else {
+        bodyHtml = `
+          <div class="post-list">
+            ${visiblePosts.map((p, idx) => renderPostCard(p, !isUnderSheet && idx === 0)).join("")}
+          </div>
+        `;
+      }
+
+      return `
+        <header class="app-header">
+          <div class="brand-lockup">
+            <span class="brand-mark" aria-hidden="true">T+</span>
+            <h2 class="app-header-title">Threads+</h2>
+          </div>
+          <button type="button" class="btn btn-secondary btn-sm" data-nav-screen="2">+ New</button>
+        </header>
+
+        <div class="tab-bar anno-target" role="tablist" aria-label="Feed categories">
+          ${!isUnderSheet ? annoBadge(1, true) : ""}
+          ${tabs.map(t => `
+            <button
+              type="button"
+              role="tab"
+              aria-selected="${state.feedTab === t}"
+              class="tab-btn${state.feedTab === t ? " active" : ""}"
+              data-feed-tab="${escapeHtml(t)}"
+            >${escapeHtml(t)}</button>
+          `).join("")}
+        </div>
+
+        <div class="screen-scroll">
+          ${bodyHtml}
+        </div>
+
+        ${renderBottomNav(3)}
+      `;
+    }
+
+    /* =========================================================================
+       SCREEN 4: TUNE YOUR FEED (BOTTOM SHEET OVER FEED)
+       ========================================================================= */
+    function renderScreen4() {
+      const target = state.posts.find(p => p.id === state.tuneTargetPostId) || state.posts[0];
+      const authorName = target ? target.author : "alex_12";
+      const catName = target ? target.category : "Tech";
+
+      return `
+        ${renderScreen3(true)}
+        <div class="viewport-overlay sheet-overlay" role="dialog" aria-modal="true" aria-labelledby="tune-sheet-title">
+          <div class="bottom-sheet">
+            <div class="sheet-handle" aria-hidden="true"></div>
+            <div style="display:flex; align-items:center; justify-content:space-between; gap:12px;">
+              <div>
+                <h2 id="tune-sheet-title" style="margin:0; font-size:17px; font-weight:700;">Tune your feed</h2>
+                <p style="margin:2px 0 0; font-size:12.5px; color:var(--text-secondary);">
+                  Post by @${escapeHtml(authorName)} &middot; ${escapeHtml(catName)}
+                </p>
+              </div>
+              <button type="button" id="btn-close-tune" class="btn btn-secondary btn-sm anno-target">
+                ${annoBadge(4)}
+                Close
+              </button>
+            </div>
+
+            <button type="button" id="btn-tune-block" class="tune-card tune-block anno-target">
+              ${annoBadge(1)}
+              <span class="tune-card-title">Block - Never show posts from this account</span>
+              <span class="tune-card-desc">Removes all posts by @${escapeHtml(authorName)} from your feed.</span>
+            </button>
+
+            <button type="button" id="btn-tune-quiet" class="tune-card anno-target">
+              ${annoBadge(2)}
+              <span class="tune-card-title">Quiet - Show fewer posts like this one</span>
+              <span class="tune-card-desc">Reduces similar topics in your feed recommendations.</span>
+            </button>
+
+            <button type="button" id="btn-tune-question" class="tune-card anno-target">
+              ${annoBadge(3)}
+              <span class="tune-card-title">Question - Why am I seeing this post?</span>
+              <span class="tune-card-desc">View why Threads+ included this post in your feed.</span>
+            </button>
+
+            ${state.tuneQuestionText ? `
+              <div class="msg-box msg-info" role="status">
+                <span aria-hidden="true">i</span>
+                <div>${escapeHtml(state.tuneQuestionText)}</div>
+              </div>
+            ` : ""}
+          </div>
+        </div>
+      `;
+    }
+
+    /* =========================================================================
+       SCREEN 5: ADVANCED HISTORY SEARCH
+       ========================================================================= */
+    function renderScreen5() {
+      const d = state.searchDraft;
+      const dateInvalid = Boolean(d.from && d.to && d.from > d.to);
+      const results = filterHistoryItems(state.historyItems, state.searchApplied);
+      const allCats = ["All categories", ...getPostableCategories()];
+
+      return `
+        <header class="app-header">
+          <h2 class="app-header-title">Search my history</h2>
+          <button type="button" id="btn-reset-filters" class="text-link-btn anno-target">
+            ${annoBadge(5)}
+            Reset filters
+          </button>
+        </header>
+
+        <div class="screen-scroll" style="display:flex; flex-direction:column; gap:14px;">
+          <div class="anno-target">
+            ${annoBadge(1)}
+            <label for="search-keyword" class="field-label">Keyword</label>
+            <input
+              id="search-keyword"
+              type="text"
+              class="input"
+              placeholder="Search post text or @username..."
+              value="${escapeHtml(d.keyword)}"
+            />
+          </div>
+
+          <div class="anno-target">
+            ${annoBadge(2)}
+            <span class="field-label">Interaction type</span>
+            <div class="chip-group" role="group" aria-label="Interaction filter">
+              ${["Viewed", "Liked", "Commented"].map(act => {
+                const selected = d.actions.includes(act);
+                return `
+                  <button
+                    type="button"
+                    class="chip-btn${selected ? " selected" : ""}"
+                    data-search-action="${act}"
+                    aria-pressed="${selected}"
+                  >${act}</button>
+                `;
+              }).join("")}
+            </div>
+          </div>
+
+          <div class="anno-target">
+            ${annoBadge(3)}
+            <div class="date-grid">
+              <div>
+                <label for="search-from" class="field-label">From</label>
+                <input id="search-from" type="date" class="input" value="${escapeHtml(d.from)}" />
+              </div>
+              <div>
+                <label for="search-to" class="field-label">To</label>
+                <input id="search-to" type="date" class="input" value="${escapeHtml(d.to)}" />
+              </div>
+            </div>
+            <div id="search-date-error" class="inline-error" style="${dateInvalid ? "" : "display:none;"}" role="alert">
+              <span aria-hidden="true">!</span> Start date must be before the end date.
+            </div>
+          </div>
+
+          <div>
+            <label for="search-category" class="field-label">Category</label>
+            <select id="search-category" class="select">
+              ${allCats.map(c => `<option value="${escapeHtml(c)}" ${d.category === c ? "selected" : ""}>${escapeHtml(c)}</option>`).join("")}
+            </select>
+          </div>
+
+          <button type="button" id="btn-run-search" class="btn btn-navy btn-block" ${dateInvalid ? "disabled" : ""}>
+            Search
+          </button>
+
+          <div class="anno-target" style="display:flex; flex-direction:column; gap:10px; padding-top:6px; border-top:1px solid var(--border-subtle);">
+            ${annoBadge(4)}
+            <div style="display:flex; align-items:center; justify-content:space-between;">
+              <strong class="tabular-nums" style="font-size:14px;">
+                ${results.length} ${results.length === 1 ? "result" : "results"}
+              </strong>
+            </div>
+
+            ${results.length === 0 ? `
+              <div class="msg-box msg-amber" role="status">
+                <span aria-hidden="true">!</span>
+                <div>No posts found. Try a wider date range.</div>
+              </div>
+            ` : results.map(item => `
+              <div class="history-item">
+                <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;">
+                  <strong style="font-size:13.5px;">@${escapeHtml(item.author)}</strong>
+                  <span class="cat-tag ${catClass(item.category)}">${escapeHtml(item.category)}</span>
+                </div>
+                <p style="margin:0; font-size:13.5px; color:var(--text-primary);">${escapeHtml(item.text)}</p>
+                <span style="font-size:12px; color:var(--text-secondary);">${escapeHtml(item.dateLabel)}</span>
+              </div>
+            `).join("")}
+          </div>
+        </div>
+
+        ${renderBottomNav(5)}
+      `;
+    }
+
+    /* =========================================================================
+       SCREEN 6: NOTIFICATION CENTRE
+       ========================================================================= */
+    function renderScreen6() {
+      const tabs = ["Interaction", "Mentions", "System"];
+      const items = state.notifications.filter(n => n.tab === state.notifTab);
+      const currentTabUnread = getUnreadCount(state.notifTab);
+
+      return `
+        <header class="app-header">
+          <h2 class="app-header-title">Notifications</h2>
+          <button type="button" id="btn-mark-all-read" class="text-link-btn anno-target" ${currentTabUnread === 0 ? "style='opacity:0.6;'" : ""}>
+            ${annoBadge(1)}
+            Mark all as read
+          </button>
+        </header>
+
+        <div class="tab-bar anno-target" role="tablist" aria-label="Notification categories">
+          ${annoBadge(2, true)}
+          ${tabs.map(t => {
+            const cnt = getUnreadCount(t);
+            return `
+              <button
+                type="button"
+                role="tab"
+                aria-selected="${state.notifTab === t}"
+                class="tab-btn${state.notifTab === t ? " active" : ""}"
+                data-notif-tab="${t}"
+              >
+                <span>${t}</span>
+                <span class="count-badge" aria-label="${cnt} unread">${cnt}</span>
+              </button>
+            `;
+          }).join("")}
+        </div>
+
+        <div class="screen-scroll" style="display:flex; flex-direction:column; justify-content:space-between; gap:14px;">
+          <div class="notif-list">
+            ${items.map((n, idx) => `
+              <button
+                type="button"
+                class="notif-item${n.unread ? " unread" : ""}${idx === 0 ? " anno-target" : ""}"
+                data-read-notif="${n.id}"
+              >
+                ${idx === 0 ? annoBadge(3, true) : ""}
+                ${n.unread ? `<span class="unread-dot" aria-hidden="true"></span>` : `<span class="read-spacer" aria-hidden="true"></span>`}
+                <div style="flex:1; display:flex; flex-direction:column; gap:3px;">
+                  <span style="font-size:13.5px; font-weight:${n.unread ? "600" : "400"}; color:var(--text-primary);">
+                    ${escapeHtml(n.text)}
+                  </span>
+                  <span style="font-size:11.5px; color:${n.unread ? "#93c5fd" : "var(--text-muted)"};">
+                    ${n.unread ? "Unread &middot; Tap to mark read" : "Read"}
+                  </span>
+                </div>
+              </button>
+            `).join("")}
+          </div>
+
+          <p class="anno-target" style="margin:0; font-size:12.5px; color:var(--text-secondary); background:var(--bg-card); border:1px solid var(--border-subtle); padding:10px 12px; border-radius:8px;">
+            ${annoBadge(4)}
+            Tip: security and account notices are under System.
+          </p>
+        </div>
+
+        ${renderBottomNav(6)}
+      `;
+    }
+
+    /* =========================================================================
+       SCREEN 7: PRIVACY DASHBOARD
+       ========================================================================= */
+    function getPrivacySummaryText() {
+      const p = state.privacy;
+      let visSentence = "Your profile is visible to followers only.";
+      if (p.visibility === "Public") {
+        visSentence = "Your profile is public. Anyone can see your posts.";
+      } else if (p.visibility === "Private") {
+        visSentence = "Your profile is private. Only approved followers can see your posts.";
+      }
+      const partnerText = p.sharePartners ? "Partner data sharing is on." : "Partner data sharing is off.";
+      const recText = p.personalisedRecs ? "Personalised recommendations are on." : "Personalised recommendations are off.";
+      return `${visSentence} ${partnerText} ${recText}`;
+    }
+
+    function renderScreen7() {
+      const p = state.privacy;
+      const confirmModal = state.publicConfirmOpen ? `
+        <div class="viewport-overlay" role="dialog" aria-modal="true" aria-labelledby="public-modal-title">
+          <div class="modal-card">
+            <h3 id="public-modal-title" class="modal-title">Make your account public?</h3>
+            <p class="modal-body">
+              Anyone will be able to see your posts. You can change this at any time.
+            </p>
+            <div class="modal-actions">
+              <button type="button" id="btn-cancel-public" class="btn btn-secondary btn-sm">Cancel</button>
+              <button type="button" id="btn-confirm-public" class="btn btn-danger btn-sm">Make public</button>
+            </div>
+          </div>
+        </div>
+      ` : "";
+
+      return `
+        <header class="app-header">
+          <h2 class="app-header-title">Privacy dashboard</h2>
+        </header>
+
+        <div class="screen-scroll" style="display:flex; flex-direction:column; gap:14px;">
+          <div class="setting-row anno-target">
+            ${annoBadge(1)}
+            <div>
+              <div style="font-size:14px; font-weight:700;">Share my activity data with partners</div>
+              <div style="font-size:12.5px; color:var(--text-secondary); margin-top:2px;">
+                Used for ads and analytics. Off by default.
+              </div>
+            </div>
+            <button
+              type="button"
+              id="toggle-partner-sharing"
+              class="switch-btn"
+              role="switch"
+              aria-checked="${p.sharePartners}"
+              aria-label="Share my activity data with partners"
+            >
+              <span class="switch-knob"></span>
+            </button>
+          </div>
+
+          <div class="setting-row anno-target">
+            ${annoBadge(2)}
+            <div>
+              <div style="font-size:14px; font-weight:700;">Personalised recommendations</div>
+              <div style="font-size:12.5px; color:var(--text-secondary); margin-top:2px;">
+                Uses my feedback to tune my feed.
+              </div>
+            </div>
+            <button
+              type="button"
+              id="toggle-personalised-recs"
+              class="switch-btn"
+              role="switch"
+              aria-checked="${p.personalisedRecs}"
+              aria-label="Personalised recommendations"
+            >
+              <span class="switch-knob"></span>
+            </button>
+          </div>
+
+          <div class="post-card anno-target">
+            ${annoBadge(3)}
+            <span class="field-label" style="margin-bottom:4px;">Account visibility</span>
+            <div class="segmented" role="radiogroup" aria-label="Account visibility">
+              ${["Public", "Followers", "Private"].map(opt => `
+                <button
+                  type="button"
+                  role="radio"
+                  aria-checked="${p.visibility === opt}"
+                  class="seg-btn${p.visibility === opt ? " active" : ""}"
+                  data-visibility-opt="${opt}"
+                >${opt}</button>
+              `).join("")}
+            </div>
+          </div>
+
+          <div class="msg-box msg-info anno-target" role="status" aria-live="polite">
+            ${annoBadge(4)}
+            <div>
+              <strong style="display:block; margin-bottom:2px;">Current privacy summary</strong>
+              ${escapeHtml(getPrivacySummaryText())}
+            </div>
+          </div>
+        </div>
+
+        ${renderBottomNav(7)}
+        ${confirmModal}
+      `;
+    }
+
+    /* =========================================================================
+       SCREEN 8: REPORT A POST
+       ========================================================================= */
+    function renderScreen8() {
+      const post = state.reportTargetPost;
+      const isReported = state.reportedPostIds.includes(post.id);
+
+      const dialogHtml = state.reportDialogOpen ? `
+        <div class="viewport-overlay" role="dialog" aria-modal="true" aria-labelledby="report-dialog-title">
+          <div class="modal-card anno-target">
+            ${annoBadge(2)}
+            <h3 id="report-dialog-title" class="modal-title">Report this post?</h3>
+            <p class="modal-body">
+              Our moderators will review it. You cannot undo a report.
+            </p>
+            <div class="modal-actions">
+              <button type="button" id="btn-cancel-report" class="btn btn-secondary btn-sm">Cancel</button>
+              <button type="button" id="btn-confirm-report" class="btn btn-danger btn-sm">Report</button>
+            </div>
+          </div>
+        </div>
+      ` : "";
+
+      return `
+        <header class="app-header">
+          <button type="button" class="btn btn-ghost btn-sm" data-nav-screen="3">&#8592; Feed</button>
+          <h2 class="app-header-title">Report post</h2>
+          <span style="width:60px;"></span>
+        </header>
+
+        <div class="screen-scroll" style="display:flex; flex-direction:column; gap:14px;">
+          ${state.reportGreenMsg ? `
+            <div class="msg-box msg-success anno-target" role="status">
+              ${annoBadge(3)}
+              <span aria-hidden="true">&#10003;</span>
+              <div>${escapeHtml(state.reportGreenMsg)}</div>
+            </div>
+          ` : ""}
+
+          ${state.reportAmberMsg ? `
+            <div class="msg-box msg-amber" role="alert">
+              <span aria-hidden="true">!</span>
+              <div>${escapeHtml(state.reportAmberMsg)}</div>
+            </div>
+          ` : ""}
+
+          <article class="post-card anno-target">
+            ${annoBadge(1)}
+            ${isReported ? `
+              <div class="msg-box msg-amber anno-target" style="padding:10px 12px;" role="status">
+                ${annoBadge(4)}
+                <span aria-hidden="true">!</span>
+                <strong>This post has been flagged for review</strong>
+              </div>
+            ` : ""}
+
+            <div class="post-top">
+              <div class="post-author-row">
+                <div class="avatar" aria-hidden="true">${initials(post.author)}</div>
+                <div class="post-meta">
+                  <div class="post-user-line">
+                    <span class="post-username">${escapeHtml(post.author)}</span>
+                    <span class="cat-tag ${catClass(post.category)}">${escapeHtml(post.category)}</span>
+                  </div>
+                  <span class="post-time">${escapeHtml(post.time)}</span>
+                </div>
+              </div>
+            </div>
+
+            <p class="post-text">${escapeHtml(post.text)}</p>
+
+            <div class="post-actions" style="justify-content:space-between;">
+              <span style="font-size:12.5px; color:var(--text-muted);">
+                ${isReported ? "Reported by you" : "Suspicious content"}
+              </span>
+              <button type="button" id="btn-open-report-dialog" class="btn btn-danger btn-sm">
+                Report post
+              </button>
+            </div>
+          </article>
+        </div>
+
+        ${renderBottomNav(3)}
+        ${dialogHtml}
+      `;
+    }
+
+    /* =========================================================================
+       SCREEN 9: MODERATOR QUEUE AND REVIEW PANEL (DESKTOP FRAME)
+       ========================================================================= */
+    function renderScreen9() {
+      const tabs = ["Open", "In review", "Closed"];
+      const filteredCases = state.cases.filter(c => c.status === state.modTab);
+      let activeCase = state.cases.find(c => c.id === state.selectedCaseId);
+      if (!activeCase && filteredCases.length > 0) {
+        activeCase = filteredCases[0];
+        state.selectedCaseId = activeCase.id;
+      }
+
+      const needsSuspendConfirm = state.modDraftDecision === "Suspend";
+      const canSubmit = Boolean(state.modDraftDecision) &&
+        (!needsSuspendConfirm || state.modSuspendConfirmed) &&
+        activeCase &&
+        activeCase.status !== "Closed";
+
+      const rightPanelHtml = activeCase ? `
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;">
+          <div>
+            <h3 style="margin:0; font-size:17px; font-weight:700;" class="tabular-nums">Case ${escapeHtml(activeCase.id)}</h3>
+            <span style="font-size:12.5px; color:var(--text-secondary);">
+              Reported by @${escapeHtml(activeCase.reportedBy)} &middot; ${escapeHtml(activeCase.age)} ago
+            </span>
+          </div>
+          <span class="status-pill ${activeCase.status === "Open" ? "open" : activeCase.status === "In review" ? "review" : "closed"}">
+            ${escapeHtml(activeCase.status)}
+          </span>
+        </div>
+
+        <div class="chip-group anno-target">
+          ${annoBadge(3)}
+          ${activeCase.chips.map(ch => `<span class="risk-chip">${escapeHtml(ch)}</span>`).join("")}
+        </div>
+
+        <div class="post-card">
+          <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;">
+            <strong style="font-size:13.5px;">@${escapeHtml(activeCase.author)}</strong>
+            <span class="cat-tag ${catClass(activeCase.category)}">${escapeHtml(activeCase.category)}</span>
+          </div>
+          <p class="post-text" style="font-size:13.5px;">${escapeHtml(activeCase.fullText)}</p>
+        </div>
+
+        <div class="post-card anno-target" style="gap:8px;">
+          ${annoBadge(4)}
+          <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;">
+            <strong style="font-size:13.5px;">Fact-check</strong>
+            <span class="status-pill ${activeCase.factCheckStatus === "Pending" ? "review" : ""}">
+              ${escapeHtml(activeCase.factCheckStatus)}
+            </span>
+          </div>
+          ${activeCase.factCheckNote ? `
+            <p style="margin:0; font-size:12.5px; color:#93c5fd;">${escapeHtml(activeCase.factCheckNote)}</p>
+          ` : ""}
+          <button
+            type="button"
+            id="btn-send-factcheck"
+            class="btn btn-secondary btn-sm"
+            ${activeCase.factCheckStatus === "Pending" || activeCase.status === "Closed" ? "disabled" : ""}
+          >
+            ${activeCase.factCheckStatus === "Pending" ? "Sent for verification" : "Send for verification"}
+          </button>
+        </div>
+
+        <div class="post-card anno-target" style="gap:10px;">
+          ${annoBadge(5)}
+          <div>
+            <label for="mod-decision-select" class="field-label">Decision (required)</label>
+            <select id="mod-decision-select" class="select" ${activeCase.status === "Closed" ? "disabled" : ""}>
+              <option value="">Select a decision...</option>
+              ${["Dismiss", "Remove post", "Warn", "Suspend"].map(opt => `
+                <option value="${opt}" ${(activeCase.status === "Closed" ? activeCase.decision : state.modDraftDecision) === opt ? "selected" : ""}>${opt}</option>
+              `).join("")}
+            </select>
+          </div>
+
+          ${needsSuspendConfirm && activeCase.status !== "Closed" ? `
+            <div class="msg-box msg-error" style="flex-direction:column; gap:8px;" role="alert">
+              <div style="display:flex; align-items:center; gap:8px;">
+                <span aria-hidden="true">!</span>
+                <strong>Suspending an account needs confirmation.</strong>
+              </div>
+              <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-size:13px;">
+                <input type="checkbox" id="chk-confirm-suspend" ${state.modSuspendConfirmed ? "checked" : ""} style="width:18px; height:18px; accent-color:#ef4444;" />
+                <span>Confirm suspension of @${escapeHtml(activeCase.author)}</span>
+              </label>
+            </div>
+          ` : ""}
+
+          <button type="button" id="btn-submit-decision" class="btn btn-navy btn-block" ${canSubmit ? "" : "disabled"}>
+            ${activeCase.status === "Closed" ? "Case closed" : "Submit decision"}
+          </button>
+        </div>
+
+        <div class="post-card" style="gap:8px;">
+          <strong style="font-size:13.5px;">Previous actions on this account</strong>
+          ${(() => {
+            const accountActions = state.previousActions.filter(a => a.account === activeCase.author);
+            if (accountActions.length === 0) {
+              return `<p style="margin:0; font-size:12.5px; color:var(--text-muted);">No previous actions recorded for @${escapeHtml(activeCase.author)}.</p>`;
+            }
+            return accountActions.map(a => `
+              <div style="font-size:12.5px; color:var(--text-secondary); display:flex; justify-content:space-between; gap:8px; border-top:1px solid rgba(255,255,255,0.06); padding-top:6px;">
+                <span><strong>${escapeHtml(a.decision)}</strong> &middot; Case ${escapeHtml(a.caseId)}</span>
+                <span class="tabular-nums">${escapeHtml(a.time)}</span>
+              </div>
+            `).join("");
+          })()}
+        </div>
+      ` : `
+        <div class="post-card">
+          <p style="margin:0; color:var(--text-secondary);">Select a case from the queue to review details.</p>
+        </div>
+      `;
+
+      return `
+        <header class="app-header">
+          <div class="brand-lockup">
+            <span class="brand-mark" aria-hidden="true">T+</span>
+            <h2 class="app-header-title">Threads+ Moderation</h2>
+          </div>
+          <span style="font-size:13px; font-weight:600; color:var(--text-secondary);">Signed in as: Moderator</span>
+        </header>
+
+        <div class="mod-layout">
+          <section class="mod-left" aria-label="Moderation case queue">
+            <div class="tab-bar anno-target" role="tablist" aria-label="Case status filter">
+              ${annoBadge(1, true)}
+              ${tabs.map(t => {
+                const count = state.cases.filter(c => c.status === t).length;
+                return `
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected="${state.modTab === t}"
+                    class="tab-btn${state.modTab === t ? " active" : ""}"
+                    data-mod-tab="${t}"
+                  >
+                    <span>${t}</span>
+                    <span class="count-badge">${count}</span>
+                  </button>
+                `;
+              }).join("")}
+            </div>
+
+            <div style="padding:10px 16px; font-size:12.5px; color:var(--text-secondary); border-bottom:1px solid var(--border-subtle);">
+              Targets: high-risk accounts 24 h; high-reach claims 12 h
+            </div>
+
+            <div class="data-table-wrap anno-target">
+              ${annoBadge(2, true)}
+              ${filteredCases.length === 0 ? `
+                <div style="padding:24px 8px; text-align:center; color:var(--text-secondary); font-size:13.5px;">
+                  No cases in "${escapeHtml(state.modTab)}".
+                </div>
+              ` : `
+                <table class="data-table">
+                  <thead>
+                    <tr>
+                      <th>Case</th>
+                      <th>Target post</th>
+                      <th>Reported by</th>
+                      <th>Status</th>
+                      <th>Age</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${filteredCases.map(c => `
+                      <tr
+                        class="case-row${state.selectedCaseId === c.id ? " selected" : ""}"
+                        data-select-case="${escapeHtml(c.id)}"
+                      >
+                        <td class="tabular-nums">
+                          <button
+                            type="button"
+                            class="case-select-btn"
+                            data-select-case="${escapeHtml(c.id)}"
+                            aria-pressed="${state.selectedCaseId === c.id}"
+                          >${escapeHtml(c.id)}</button>
+                        </td>
+                        <td>${escapeHtml(c.targetPost)}</td>
+                        <td>${escapeHtml(c.reportedBy)}</td>
+                        <td>
+                          <span class="status-pill ${c.status === "Open" ? "open" : c.status === "In review" ? "review" : "closed"}">
+                            ${escapeHtml(c.status)}
+                          </span>
+                        </td>
+                        <td class="tabular-nums">${escapeHtml(c.age)}</td>
+                      </tr>
+                    `).join("")}
+                  </tbody>
+                </table>
+              `}
+            </div>
+          </section>
+
+          <section class="mod-right" aria-label="Case review panel">
+            ${rightPanelHtml}
+          </section>
+        </div>
+      `;
+    }
+
+    /* =========================================================================
+       SCREEN 10: ADMINISTRATOR PANEL (DESKTOP FRAME)
+       ========================================================================= */
+    function renderScreen10() {
+      const roleConfirmHtml = state.roleConfirmModal ? `
+        <div class="viewport-overlay" role="dialog" aria-modal="true" aria-labelledby="role-modal-title">
+          <div class="modal-card" style="max-width:420px;">
+            <h3 id="role-modal-title" class="modal-title">Confirm role change</h3>
+            <p class="modal-body">
+              ${escapeHtml(state.roleConfirmModal.message)}
+            </p>
+            <div class="modal-actions">
+              <button type="button" id="btn-cancel-role-change" class="btn btn-secondary btn-sm">Cancel</button>
+              <button type="button" id="btn-confirm-role-change" class="btn btn-danger btn-sm">Confirm change</button>
+            </div>
+          </div>
+        </div>
+      ` : "";
+
+      return `
+        <header class="app-header">
+          <div class="brand-lockup">
+            <span class="brand-mark" aria-hidden="true">T+</span>
+            <h2 class="app-header-title">Threads+ Admin</h2>
+          </div>
+          <span style="font-size:13px; font-weight:600; color:var(--text-secondary);">Signed in as: Administrator</span>
+        </header>
+
+        <div class="admin-grid">
+          <!-- Card 1: Categories -->
+          <section class="admin-card anno-target" aria-label="Categories management">
+            ${annoBadge(1)}
+            <h3 class="admin-card-title">Categories</h3>
+            <div style="display:flex; gap:8px;">
+              <input
+                id="input-new-category"
+                type="text"
+                class="input"
+                placeholder="New category name"
+                aria-label="New category name"
+                value="${escapeHtml(state.newCategoryName)}"
+              />
+              <button type="button" id="btn-add-category" class="btn btn-navy btn-sm">Add</button>
+            </div>
+            <div id="admin-cat-error" class="inline-error" style="${state.categoryError ? "" : "display:none;"}" role="alert">
+              <span aria-hidden="true">!</span> ${escapeHtml(state.categoryError)}
+            </div>
+            <ul style="list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:8px;">
+              ${state.categories.map(c => `
+                <li style="display:flex; align-items:center; justify-content:space-between; padding:8px 10px; background:var(--bg-input); border:1px solid var(--border-subtle); border-radius:8px; font-size:13.5px;">
+                  <strong>${escapeHtml(c.name)}</strong>
+                  <span class="tabular-nums" style="font-size:12.5px; color:var(--text-secondary);">(${escapeHtml(c.countLabel)})</span>
+                </li>
+              `).join("")}
+            </ul>
+          </section>
+
+          <!-- Card 2: Roles and access -->
+          <section class="admin-card anno-target" aria-label="Roles and access">
+            ${annoBadge(2)}
+            <h3 class="admin-card-title">Roles and access</h3>
+            <div style="display:flex; flex-direction:column; gap:10px;">
+              ${state.users.map(u => `
+                <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; padding:8px 10px; background:var(--bg-input); border:1px solid var(--border-subtle); border-radius:8px; flex-wrap:wrap;">
+                  <div style="min-width:90px;">
+                    <strong style="font-size:13.5px;">${escapeHtml(u.username)}</strong>
+                    <div style="font-size:11.5px; color:var(--text-muted);">Current: ${escapeHtml(u.role)}</div>
+                  </div>
+                  <div class="role-row-controls" style="display:flex; align-items:center; gap:8px; flex:1; justify-content:flex-end;">
+                    <select class="select" style="max-width:150px; min-height:40px;" aria-label="Role for ${escapeHtml(u.username)}" data-role-select="${escapeHtml(u.username)}">
+                      ${["End-User", "Moderator", "Administrator"].map(r => `
+                        <option value="${r}" ${u.pendingRole === r ? "selected" : ""}>${r}</option>
+                      `).join("")}
+                    </select>
+                    <button type="button" class="btn btn-navy btn-sm" data-save-role="${escapeHtml(u.username)}">Save</button>
+                  </div>
+                </div>
+              `).join("")}
+            </div>
+          </section>
+
+          <!-- Card 3: Platform health -->
+          <section class="admin-card anno-target" aria-label="Platform health">
+            ${annoBadge(3)}
+            <h3 class="admin-card-title">Platform health</h3>
+            <div class="health-tile">
+              <div>
+                <div style="font-size:14px; font-weight:700;" class="tabular-nums">Feed response 1.1 s</div>
+                <div style="font-size:12.5px; color:#bbf7d0;" class="tabular-nums">(target 1.5 s)</div>
+              </div>
+              <span class="health-status">&#10003; Target met</span>
+            </div>
+            <div class="health-tile">
+              <div>
+                <div style="font-size:14px; font-weight:700;" class="tabular-nums">Uptime (30 days) 99.95%</div>
+                <div style="font-size:12.5px; color:#bbf7d0;" class="tabular-nums">(target 99.9%)</div>
+              </div>
+              <span class="health-status">&#10003; Target met</span>
+            </div>
+          </section>
+
+          <!-- Card 4: Access audit log -->
+          <section class="admin-card anno-target" aria-label="Access audit log">
+            ${annoBadge(4)}
+            <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;">
+              <h3 class="admin-card-title">Access audit log</h3>
+              <button type="button" id="btn-export-audit" class="btn btn-secondary btn-sm">Export</button>
+            </div>
+            <div style="overflow-x:auto;">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Log ID</th>
+                    <th>User</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${state.auditLog.map(row => `
+                    <tr>
+                      <td class="tabular-nums" style="font-family:var(--font-mono); font-size:12.5px;">${escapeHtml(row.id)}</td>
+                      <td style="font-weight:600;">${escapeHtml(row.user)}</td>
+                      <td>${escapeHtml(row.action)}</td>
+                    </tr>
+                  `).join("")}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        </div>
+
+        ${roleConfirmHtml}
+      `;
+    }
+
+    /* =========================================================================
+       MASTER RENDER FUNCTION
+       ========================================================================= */
+    function render() {
+      renderSidebar();
+      renderAnnotationsPanel();
+
+      const cur = SCREENS.find(s => s.id === state.currentScreen);
+      const mount = document.getElementById("frame-mount");
+
+      let inner = "";
+      switch (state.currentScreen) {
+        case 1: inner = renderScreen1(); break;
+        case 2: inner = renderScreen2(); break;
+        case 3: inner = renderScreen3(false); break;
+        case 4: inner = renderScreen4(); break;
+        case 5: inner = renderScreen5(); break;
+        case 6: inner = renderScreen6(); break;
+        case 7: inner = renderScreen7(); break;
+        case 8: inner = renderScreen8(); break;
+        case 9: inner = renderScreen9(); break;
+        case 10: inner = renderScreen10(); break;
+      }
+
+      if (cur.device === "desktop") {
+        mount.innerHTML = `
+          <div class="browser-frame">
+            <div class="browser-chrome">
+              <div class="window-dots" aria-hidden="true">
+                <span class="window-dot red"></span>
+                <span class="window-dot amber"></span>
+                <span class="window-dot green"></span>
+              </div>
+              <div class="address-bar" aria-label="Browser address bar">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                <span>${escapeHtml(cur.url)}</span>
+              </div>
+            </div>
+            <div class="browser-viewport">
+              ${inner}
+            </div>
+            <div id="toast-host" class="toast-host">${renderToastMarkup()}</div>
+          </div>
+        `;
+      } else {
+        mount.innerHTML = `
+          <div class="phone-frame">
+            <div class="phone-statusbar" aria-hidden="true">
+              <span class="phone-time">9:41</span>
+              <div class="phone-notch"></div>
+              <div class="phone-status-icons">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="2" y="14" width="3" height="6" rx="1"/><rect x="7" y="10" width="3" height="10" rx="1"/><rect x="12" y="6" width="3" height="14" rx="1"/><rect x="17" y="2" width="3" height="18" rx="1"/></svg>
+                <svg width="18" height="12" viewBox="0 0 24 14" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="2" width="19" height="10" rx="2"/><rect x="3" y="4" width="14" height="6" fill="currentColor" stroke="none"/><path d="M22 5v4"/></svg>
+              </div>
+            </div>
+            <div class="phone-viewport">
+              ${inner}
+              <div id="toast-host" class="toast-host">${renderToastMarkup()}</div>
+            </div>
+          </div>
+        `;
+      }
+    }
+
+    /* =========================================================================
+       EVENT DELEGATION & INTERACTIVE HANDLERS
+       ========================================================================= */
+    document.addEventListener("click", (e) => {
+      const target = e.target.closest("button, [data-select-case]");
+      if (!target) return;
+
+      // Sidebar & Bottom Nav Screen Jumps
+      if (target.dataset.navScreen) {
+        const nextId = Number(target.dataset.navScreen);
+        // Close mobile sidebar after selecting
+        document.getElementById("demo-sidebar").classList.remove("mobile-open");
+        document.getElementById("mobile-menu-toggle").setAttribute("aria-expanded", "false");
+        goToScreen(nextId);
+        return;
+      }
+
+      // Demo Prev / Next / Reset
+      if (target.id === "btn-prev-screen") {
+        goToScreen(state.currentScreen - 1);
+        return;
+      }
+      if (target.id === "btn-next-screen") {
+        goToScreen(state.currentScreen + 1);
+        return;
+      }
+      if (target.id === "btn-reset-demo") {
+        if (feedLoadingTimer) clearTimeout(feedLoadingTimer);
+        if (toastTimer) clearTimeout(toastTimer);
+        state = createInitialState();
+        render();
+        showToast("Demo reset to initial state");
+        return;
+      }
+      if (target.id === "mobile-menu-toggle") {
+        const sb = document.getElementById("demo-sidebar");
+        const open = sb.classList.toggle("mobile-open");
+        target.setAttribute("aria-expanded", String(open));
+        return;
+      }
+
+      // Toast Undo
+      if (target.id === "btn-toast-undo" && state.toast && typeof state.toast.undoAction === "function") {
+        const fn = state.toast.undoAction;
+        clearToast();
+        fn();
+        return;
+      }
+
+      // --- SCREEN 1: SIGN-IN ---
+      if (target.id === "btn-signin-ig") {
+        state.signInAttempts += 1;
+        if (state.simulateSignInFail || state.signInAttempts === 1) {
+          state.signInError = true;
+          render();
+        } else {
+          state.signInError = false;
+          goToScreen(3);
+          showToast("Signed in with Instagram");
+        }
+        return;
+      }
+      if (target.id === "btn-why-ig") {
+        state.whyInstagramOpen = !state.whyInstagramOpen;
+        render();
+        return;
+      }
+      if (target.id === "btn-close-why") {
+        state.whyInstagramOpen = false;
+        render();
+        return;
+      }
+
+      // --- SCREEN 2: CREATE POST ---
+      if (target.id === "btn-cancel-post") {
+        goToScreen(3);
+        return;
+      }
+      if (target.dataset.selectPostCat) {
+        state.draftCategory = target.dataset.selectPostCat;
+        render();
+        return;
+      }
+      if (target.id === "btn-submit-post") {
+        if (state.draftText.trim().length === 0 || !state.draftCategory) return;
+        const cat = state.draftCategory;
+        state.posts.unshift({
+          id: "p_" + Date.now(),
+          author: "you",
+          category: cat,
+          time: "Just now",
+          text: state.draftText.trim(),
+          likes: 0,
+          reposts: 0,
+          liked: false,
+          reposted: false,
+          replies: []
+        });
+        state.draftText = "";
+        state.draftCategory = null;
+        state.feedTab = cat;
+        goToScreen(3);
+        showToast(`Post published to ${cat}`);
+        return;
+      }
+
+      // --- SCREEN 3: FEED ---
+      if (target.dataset.feedTab) {
+        const tab = target.dataset.feedTab;
+        state.feedTab = tab;
+        state.openPostMenuId = null;
+        state.feedLoading = true;
+        if (feedLoadingTimer) clearTimeout(feedLoadingTimer);
+        render();
+        feedLoadingTimer = setTimeout(() => {
+          state.feedLoading = false;
+          feedLoadingTimer = null;
+          render();
+        }, 1500);
+        return;
+      }
+      if (target.dataset.likePost) {
+        const p = state.posts.find(x => x.id === target.dataset.likePost);
+        if (p) {
+          p.liked = !p.liked;
+          p.likes += p.liked ? 1 : -1;
+          render();
+        }
+        return;
+      }
+      if (target.dataset.repostPost) {
+        const p = state.posts.find(x => x.id === target.dataset.repostPost);
+        if (p) {
+          p.reposted = !p.reposted;
+          p.reposts += p.reposted ? 1 : -1;
+          render();
+        }
+        return;
+      }
+      if (target.dataset.toggleReply) {
+        const pid = target.dataset.toggleReply;
+        state.openReplyPostId = state.openReplyPostId === pid ? null : pid;
+        render();
+        return;
+      }
+      if (target.dataset.sendReply) {
+        const pid = target.dataset.sendReply;
+        const txt = (state.replyDrafts[pid] || "").trim();
+        if (!txt) return;
+        const p = state.posts.find(x => x.id === pid);
+        if (p) {
+          p.replies.push({ author: "you", text: txt });
+          state.replyDrafts[pid] = "";
+          render();
+          showToast("Reply posted");
+        }
+        return;
+      }
+      if (target.dataset.togglePostMenu) {
+        const pid = target.dataset.togglePostMenu;
+        state.openPostMenuId = state.openPostMenuId === pid ? null : pid;
+        render();
+        return;
+      }
+      if (target.dataset.openTune) {
+        state.tuneTargetPostId = target.dataset.openTune;
+        state.tuneQuestionText = "";
+        state.openPostMenuId = null;
+        goToScreen(4);
+        return;
+      }
+      if (target.dataset.openReport) {
+        const p = state.posts.find(x => x.id === target.dataset.openReport);
+        if (p) {
+          state.reportTargetPost = deepClone(p);
+          state.reportGreenMsg = "";
+          state.reportAmberMsg = "";
+        }
+        state.openPostMenuId = null;
+        goToScreen(8);
+        return;
+      }
+      if (target.id === "btn-unblock-all") {
+        state.blockedAuthors = [];
+        render();
+        showToast("Blocked accounts restored");
+        return;
+      }
+
+      // --- SCREEN 4: TUNE YOUR FEED ---
+      if (target.id === "btn-close-tune") {
+        state.tuneQuestionText = "";
+        goToScreen(3);
+        return;
+      }
+      if (target.id === "btn-tune-block") {
+        const p = state.posts.find(x => x.id === state.tuneTargetPostId) || state.posts[0];
+        const author = p ? p.author : "alex_12";
+        if (!state.blockedAuthors.includes(author)) {
+          state.blockedAuthors.push(author);
+        }
+        goToScreen(3);
+        showToast(`Blocked @${author}. Posts hidden.`, {
+          duration: 5000,
+          undoAction: () => {
+            state.blockedAuthors = state.blockedAuthors.filter(a => a !== author);
+            render();
+          }
+        });
+        return;
+      }
+      if (target.id === "btn-tune-quiet") {
+        const p = state.posts.find(x => x.id === state.tuneTargetPostId) || state.posts[0];
+        const pid = p ? p.id : "p1";
+        if (!state.quietedPostIds.includes(pid)) {
+          state.quietedPostIds.push(pid);
+        }
+        goToScreen(3);
+        showToast("Done. Fewer posts like this.", {
+          duration: 5000,
+          undoAction: () => {
+            state.quietedPostIds = state.quietedPostIds.filter(id => id !== pid);
+            render();
+          }
+        });
+        return;
+      }
+      if (target.id === "btn-tune-question") {
+        const p = state.posts.find(x => x.id === state.tuneTargetPostId) || state.posts[0];
+        const cat = p ? p.category : "Tech";
+        const msg = `Recommended because you engage with ${cat} posts.`;
+        state.tuneQuestionText = msg;
+        render();
+        showToast(msg, {
+          duration: 5000,
+          undoAction: () => {
+            state.tuneQuestionText = "";
+            render();
+          }
+        });
+        return;
+      }
+
+      // --- SCREEN 5: HISTORY SEARCH ---
+      if (target.dataset.searchAction) {
+        const act = target.dataset.searchAction;
+        if (state.searchDraft.actions.includes(act)) {
+          state.searchDraft.actions = state.searchDraft.actions.filter(a => a !== act);
+        } else {
+          state.searchDraft.actions.push(act);
+        }
+        render();
+        return;
+      }
+      if (target.id === "btn-run-search") {
+        const d = state.searchDraft;
+        if (d.from && d.to && d.from > d.to) return;
+        state.searchApplied = deepClone(state.searchDraft);
+        render();
+        return;
+      }
+      if (target.id === "btn-reset-filters") {
+        const blank = { keyword: "", actions: [], from: "", to: "", category: "All categories" };
+        state.searchDraft = deepClone(blank);
+        state.searchApplied = deepClone(blank);
+        render();
+        return;
+      }
+
+      // --- SCREEN 6: NOTIFICATIONS ---
+      if (target.dataset.notifTab) {
+        state.notifTab = target.dataset.notifTab;
+        render();
+        return;
+      }
+      if (target.id === "btn-mark-all-read") {
+        state.notifications.forEach(n => {
+          if (n.tab === state.notifTab) n.unread = false;
+        });
+        render();
+        showToast(`Marked ${state.notifTab} notifications as read`);
+        return;
+      }
+      if (target.dataset.readNotif) {
+        const item = state.notifications.find(n => n.id === target.dataset.readNotif);
+        if (item && item.unread) {
+          item.unread = false;
+          render();
+        }
+        return;
+      }
+
+      // --- SCREEN 7: PRIVACY DASHBOARD ---
+      if (target.id === "toggle-partner-sharing") {
+        state.privacy.sharePartners = !state.privacy.sharePartners;
+        render();
+        showToast("Saved");
+        return;
+      }
+      if (target.id === "toggle-personalised-recs") {
+        state.privacy.personalisedRecs = !state.privacy.personalisedRecs;
+        render();
+        showToast("Saved");
+        return;
+      }
+      if (target.dataset.visibilityOpt) {
+        const opt = target.dataset.visibilityOpt;
+        if (opt === "Public" && state.privacy.visibility !== "Public") {
+          state.publicConfirmOpen = true;
+          render();
+        } else if (opt !== state.privacy.visibility) {
+          state.privacy.visibility = opt;
+          render();
+          showToast("Saved");
+        }
+        return;
+      }
+      if (target.id === "btn-cancel-public") {
+        state.publicConfirmOpen = false;
+        render();
+        return;
+      }
+      if (target.id === "btn-confirm-public") {
+        state.privacy.visibility = "Public";
+        state.publicConfirmOpen = false;
+        render();
+        showToast("Saved");
+        return;
+      }
+
+      // --- SCREEN 8: REPORT A POST ---
+      if (target.id === "btn-open-report-dialog") {
+        const pid = state.reportTargetPost.id;
+        if (state.reportedPostIds.includes(pid)) {
+          state.reportAmberMsg = "You have already reported this post.";
+          state.reportDialogOpen = false;
+          render();
+        } else {
+          state.reportDialogOpen = true;
+          render();
+        }
+        return;
+      }
+      if (target.id === "btn-cancel-report") {
+        state.reportDialogOpen = false;
+        render();
+        return;
+      }
+      if (target.id === "btn-confirm-report") {
+        const pid = state.reportTargetPost.id;
+        if (state.reportedPostIds.includes(pid)) {
+          state.reportDialogOpen = false;
+          state.reportAmberMsg = "You have already reported this post.";
+          render();
+          return;
+        }
+        state.reportedPostIds.push(pid);
+        state.reportDialogOpen = false;
+        state.reportAmberMsg = "";
+        state.reportGreenMsg = "Report received. Case C-1042. We will review it and let you know.";
+        render();
+        showToast("Report received. Case C-1042.");
+        return;
+      }
+
+      // --- SCREEN 9: MODERATION ---
+      if (target.dataset.modTab) {
+        state.modTab = target.dataset.modTab;
+        const firstInTab = state.cases.find(c => c.status === state.modTab);
+        state.selectedCaseId = firstInTab ? firstInTab.id : null;
+        state.modDraftDecision = "";
+        state.modSuspendConfirmed = false;
+        render();
+        return;
+      }
+      if (target.dataset.selectCase) {
+        state.selectedCaseId = target.dataset.selectCase;
+        state.modDraftDecision = "";
+        state.modSuspendConfirmed = false;
+        render();
+        return;
+      }
+      if (target.id === "btn-send-factcheck") {
+        const c = state.cases.find(x => x.id === state.selectedCaseId);
+        if (c && c.status !== "Closed") {
+          c.factCheckStatus = "Pending";
+          c.factCheckNote = "Sent to Fact-Checking Partner";
+          render();
+          showToast("Sent to Fact-Checking Partner");
+        }
+        return;
+      }
+      if (target.id === "btn-submit-decision") {
+        const c = state.cases.find(x => x.id === state.selectedCaseId);
+        if (!c || c.status === "Closed" || !state.modDraftDecision) return;
+        if (state.modDraftDecision === "Suspend" && !state.modSuspendConfirmed) return;
+
+        c.status = "Closed";
+        c.decision = state.modDraftDecision;
+        state.previousActions.unshift({
+          caseId: c.id,
+          account: c.author,
+          decision: c.decision,
+          time: "Just now"
+        });
+        state.modDraftDecision = "";
+        state.modSuspendConfirmed = false;
+        render();
+        showToast(`Case ${c.id} moved to Closed (${c.decision})`);
+        return;
+      }
+
+      // --- SCREEN 10: ADMIN PANEL ---
+      if (target.id === "btn-add-category") {
+        const raw = state.newCategoryName.trim();
+        if (!raw) {
+          state.categoryError = "Category name is required.";
+          render();
+          return;
+        }
+        if (raw.length > 50) {
+          state.categoryError = "Category name must be 50 characters or fewer.";
+          render();
+          return;
+        }
+        const duplicate = state.categories.some(c => c.name.toLowerCase() === raw.toLowerCase());
+        if (duplicate) {
+          state.categoryError = "That category already exists.";
+          render();
+          return;
+        }
+        state.categories.push({ name: raw, countLabel: "0 posts", isSystem: false });
+        state.newCategoryName = "";
+        state.categoryError = "";
+        render();
+        showToast(`Category "${raw}" added`);
+        return;
+      }
+      if (target.dataset.saveRole) {
+        const username = target.dataset.saveRole;
+        const u = state.users.find(x => x.username === username);
+        if (!u) return;
+        if (u.pendingRole === u.role) {
+          showToast(`No role changes for ${u.username}`);
+          return;
+        }
+        const removesAccess = roleRank(u.pendingRole) < roleRank(u.role);
+        if (removesAccess) {
+          let area = "administrative controls";
+          if (u.role === "Moderator" && u.pendingRole === "End-User") {
+            area = "the moderation queue";
+          } else if (u.role === "Administrator" && u.pendingRole === "Moderator") {
+            area = "the administrator panel";
+          } else if (u.role === "Administrator" && u.pendingRole === "End-User") {
+            area = "the administrator panel and moderation queue";
+          }
+          state.roleConfirmModal = {
+            username: u.username,
+            oldRole: u.role,
+            newRole: u.pendingRole,
+            message: `Change ${u.username} from ${u.role} to ${u.pendingRole}? This removes access to ${area}.`
+          };
+          render();
+        } else {
+          applyRoleChange(u.username, u.pendingRole);
+        }
+        return;
+      }
+      if (target.id === "btn-cancel-role-change") {
+        if (state.roleConfirmModal) {
+          const u = state.users.find(x => x.username === state.roleConfirmModal.username);
+          if (u) u.pendingRole = u.role;
+        }
+        state.roleConfirmModal = null;
+        render();
+        return;
+      }
+      if (target.id === "btn-confirm-role-change" && state.roleConfirmModal) {
+        const { username, newRole } = state.roleConfirmModal;
+        state.roleConfirmModal = null;
+        applyRoleChange(username, newRole);
+        return;
+      }
+      if (target.id === "btn-export-audit") {
+        showToast("Access audit report exported");
+        return;
+      }
+    });
+
+    function applyRoleChange(username, newRole) {
+      const u = state.users.find(x => x.username === username);
+      if (!u) return;
+      const oldRole = u.role;
+      u.role = newRole;
+      u.pendingRole = newRole;
+      state.auditLog.unshift({
+        id: "L-" + state.nextLogNumber,
+        user: username,
+        action: `Role change (${oldRole} to ${newRole})`
+      });
+      state.nextLogNumber += 1;
+      render();
+      showToast(`Updated ${username} to ${newRole}`);
+    }
+
+    // Input & Change Events (Preserve focus while typing!)
+    document.addEventListener("input", (e) => {
+      const t = e.target;
+
+      // Screen 2: Live textarea counter & category error without destroying focus
+      if (t.id === "create-post-textarea") {
+        state.draftText = t.value.slice(0, 1000);
+        const counter = document.getElementById("post-char-counter");
+        if (counter) counter.textContent = `${state.draftText.length} / 1000`;
+        const errEl = document.getElementById("create-cat-error");
+        const missingCat = state.draftText.length > 0 && !state.draftCategory;
+        if (errEl) errEl.style.display = missingCat ? "flex" : "none";
+        const postBtn = document.getElementById("btn-submit-post");
+        if (postBtn) postBtn.disabled = !(state.draftText.trim().length > 0 && state.draftCategory);
+        return;
+      }
+
+      // Screen 3: Reply input draft
+      if (t.dataset && t.dataset.replyInput) {
+        state.replyDrafts[t.dataset.replyInput] = t.value;
+        return;
+      }
+
+      // Screen 5: Keyword & Date live validation without losing focus
+      if (t.id === "search-keyword") {
+        state.searchDraft.keyword = t.value;
+        return;
+      }
+      if (t.id === "search-from" || t.id === "search-to") {
+        if (t.id === "search-from") state.searchDraft.from = t.value;
+        if (t.id === "search-to") state.searchDraft.to = t.value;
+        const invalid = Boolean(state.searchDraft.from && state.searchDraft.to && state.searchDraft.from > state.searchDraft.to);
+        const errEl = document.getElementById("search-date-error");
+        if (errEl) errEl.style.display = invalid ? "flex" : "none";
+        const btn = document.getElementById("btn-run-search");
+        if (btn) btn.disabled = invalid;
+        return;
+      }
+
+      // Screen 10: New category input
+      if (t.id === "input-new-category") {
+        state.newCategoryName = t.value;
+        if (state.categoryError) {
+          state.categoryError = "";
+          const errEl = document.getElementById("admin-cat-error");
+          if (errEl) errEl.style.display = "none";
+        }
+        return;
+      }
+    });
+
+    document.addEventListener("change", (e) => {
+      const t = e.target;
+
+      if (t.id === "chk-simulate-fail") {
+        state.simulateSignInFail = t.checked;
+        return;
+      }
+      if (t.id === "chk-annotations") {
+        state.annotationsOn = t.checked;
+        document.body.classList.toggle("annotations-on", state.annotationsOn);
+        return;
+      }
+      if (t.id === "search-category") {
+        state.searchDraft.category = t.value;
+        return;
+      }
+      if (t.id === "mod-decision-select") {
+        state.modDraftDecision = t.value;
+        state.modSuspendConfirmed = false;
+        render();
+        return;
+      }
+      if (t.id === "chk-confirm-suspend") {
+        state.modSuspendConfirmed = t.checked;
+        const submitBtn = document.getElementById("btn-submit-decision");
+        if (submitBtn) {
+          submitBtn.disabled = !(state.modDraftDecision && state.modSuspendConfirmed);
+        }
+        return;
+      }
+      if (t.dataset && t.dataset.roleSelect) {
+        const u = state.users.find(x => x.username === t.dataset.roleSelect);
+        if (u) u.pendingRole = t.value;
+        return;
+      }
+    });
+
+    // Keyboard Shortcuts: Left/Right arrows for screens, Enter on table rows or search
+    document.addEventListener("keydown", (e) => {
+      const tag = document.activeElement ? document.activeElement.tagName : "";
+      const isFormField = tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT";
+
+      if (!isFormField && (e.key === "ArrowLeft" || e.key === "ArrowRight")) {
+        e.preventDefault();
+        if (e.key === "ArrowLeft" && state.currentScreen > 1) goToScreen(state.currentScreen - 1);
+        if (e.key === "ArrowRight" && state.currentScreen < 10) goToScreen(state.currentScreen + 1);
+        return;
+      }
+
+      if (e.key === "Enter" && document.activeElement && document.activeElement.dataset && document.activeElement.dataset.selectCase) {
+        e.preventDefault();
+        state.selectedCaseId = document.activeElement.dataset.selectCase;
+        state.modDraftDecision = "";
+        state.modSuspendConfirmed = false;
+        render();
+      }
+
+      if (e.key === "Enter" && document.activeElement && document.activeElement.id === "search-keyword") {
+        const d = state.searchDraft;
+        if (!(d.from && d.to && d.from > d.to)) {
+          state.searchApplied = deepClone(d);
+          render();
+        }
+      }
+    });
+
+    // Initial render
+    render();
+  </script>
+</body>
+</html>
